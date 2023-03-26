@@ -1,0 +1,426 @@
+/// Implements the ClosureToLLVM pass.
+///
+/// @file
+/// @author     Clément Fournier (clement.fournier@mailbox.tu-dresden.de)
+
+#include "sigi-mlir/Conversion/ClosureToLLVM/ClosureToLLVM.h"
+
+#include "../PassDetails.h"
+#include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
+#include "mlir/Conversion/LLVMCommon/Pattern.h"
+#include "mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
+#include "mlir/Dialect/LLVMIR/FunctionCallUtils.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/IR/BuiltinDialect.h"
+#include "mlir/IR/IRMapping.h"
+#include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/SymbolTable.h"
+#include "sigi-mlir/Dialect/Closure/IR/ClosureDialect.h"
+
+using namespace mlir;
+using namespace mlir::closure;
+
+namespace {
+
+static LLVM::LLVMPointerType ptrType(Type ty)
+{
+    return LLVM::LLVMPointerType::get(ty);
+}
+
+static LLVM::LLVMPointerType untypedPtrType(MLIRContext* ctx)
+{
+    return LLVM::LLVMPointerType::get(ctx, 0);
+}
+
+static LLVM::LLVMFunctionType
+convertFunType(LLVMTypeConverter &converter, FunctionType funTy)
+{
+    TypeConverter::SignatureConversion conversion(funTy.getInputs().size());
+    Type res = converter.convertFunctionSignature(funTy, false, conversion);
+    return res.cast<LLVM::LLVMFunctionType>();
+}
+
+static LLVM::LLVMFunctionType
+insertClosureParameter(LLVM::LLVMFunctionType funTy)
+{
+    SmallVector<Type> argTypes;
+    argTypes.reserve(funTy.getParams().size() + 1);
+    argTypes.push_back(untypedPtrType(funTy.getContext()));
+    for (auto ty : funTy.getParams()) argTypes.push_back(ty);
+
+    return LLVM::LLVMFunctionType::get(
+        funTy.getContext(),
+        funTy.getReturnType(),
+        argTypes,
+        funTy.isVarArg());
+}
+
+struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
+
+    explicit ConvertClosureBoxToLLVM(
+        LLVMTypeConverter &typeConverter,
+        PatternBenefit benefit = 1)
+            : ConvertOpToLLVMPattern(typeConverter, benefit)
+    {
+        // closures may be nested
+        setHasBoundedRewriteRecursion();
+    }
+
+    static SmallString<20>
+    getUniqueFunctionName(ModuleOp moduleOp, const char prefix[])
+    {
+        // Get a unique global name.
+        unsigned stringNumber = 0;
+        size_t prefixLen = strlen(prefix);
+        assert(20 > 3 + prefixLen); // make sure this is bigger than the prefix
+                                    // (prefixes are literals)
+        SmallString<20> name(prefix);
+        do {
+            name.truncate(prefixLen);
+            name.append(std::to_string(stringNumber++));
+        } while (moduleOp.lookupSymbol(name));
+        return name;
+    }
+
+    static Value getSizeOfType(Type ty, ImplicitLocOpBuilder &rewriter)
+    {
+        //  https://stackoverflow.com/questions/14608250/how-can-i-find-the-size-of-a-type
+        auto fakeArray = rewriter.create<LLVM::NullOp>(ptrType(ty));
+
+        auto gep = rewriter.create<LLVM::GEPOp>(
+            ptrType(ty),
+            fakeArray.getResult(),
+            ArrayRef<LLVM::GEPArg>{1});
+        auto size =
+            rewriter.create<LLVM::PtrToIntOp>(rewriter.getI64Type(), gep);
+        return size.getResult();
+    }
+
+    LogicalResult matchAndRewrite(
+        closure::BoxOp op,
+        OpAdaptor adaptor,
+        ConversionPatternRewriter &rewriter0) const override
+    {
+
+        auto loc = op.getLoc();
+        ImplicitLocOpBuilder rewriter(loc, rewriter0);
+
+        auto moduleOp = op->getParentOfType<ModuleOp>();
+        auto funTy = convertFunType(*getTypeConverter(), op.getFunctionType());
+        auto wrapperTy = insertClosureParameter(funTy);
+        auto workerTy = convertFunType(
+            *getTypeConverter(),
+            FunctionType::get(
+                getContext(),
+                op.getRegion().front().getArgumentTypes(),
+                wrapperTy.getReturnTypes()));
+
+        LLVM::LLVMFuncOp workerFun;
+        {
+            // outline the body of the closure into a worker function
+
+            ConversionPatternRewriter::InsertionGuard guard(rewriter);
+            rewriter.setInsertionPointToStart(moduleOp.getBody());
+            workerFun = rewriter.create<LLVM::LLVMFuncOp>(
+                getUniqueFunctionName(moduleOp, "closure_worker_"),
+                workerTy,
+                LLVM::Linkage::Private);
+            Block* entry = workerFun.addEntryBlock();
+
+            rewriter0.cloneRegionBefore(op.getBody(), entry);
+            workerFun.getFunctionBody()
+                .getBlocks()
+                .pop_back(); // remove that fake block
+
+            auto conversionResult = rewriter0.convertRegionTypes(
+                &workerFun.getFunctionBody(),
+                *getTypeConverter());
+            if (failed(conversionResult))
+                return rewriter0.notifyMatchFailure(loc, [](auto &diag) {
+                    diag << "cannot convert block signature";
+                });
+        }
+
+        SmallVector<Type> captureArgTypes(adaptor.getCaptureArgs().getTypes());
+
+        // type of the struct that holds the captured parameters
+        auto captureParamStructTy =
+            LLVM::LLVMStructType::getLiteral(getContext(), captureArgTypes);
+
+        // type of the struct that holds the entire closure (fptr + capture
+        // args)
+        auto fullClosureTy = LLVM::LLVMStructType::getLiteral(
+            getContext(),
+            {ptrType(wrapperTy), captureParamStructTy});
+
+        // create a wrapper function, that has the type of the erased
+        // function + 1 initial parameter for the closure itself
+        LLVM::LLVMFuncOp wrapperFun;
+        {
+            ConversionPatternRewriter::InsertionGuard guard(rewriter);
+            rewriter.setInsertionPointAfter(workerFun.getOperation());
+            wrapperFun = rewriter.create<LLVM::LLVMFuncOp>(
+                getUniqueFunctionName(moduleOp, "closure_wrapper_"),
+                wrapperTy,
+                LLVM::Linkage::Private);
+            Block* entry = wrapperFun.addEntryBlock();
+            rewriter.setInsertionPointToStart(entry);
+
+            // clang-format off
+            // %typedPtr = llvm.bitcast %closure: !llvm.ptr to !llvm.ptr<fullClosureTy>
+            // clang-format on
+            auto typedPtr = rewriter.create<LLVM::BitcastOp>(
+                ptrType(fullClosureTy),
+                entry->getArgument(0));
+
+            // clang-format off
+            // %argsPtr = llvm.getelementptr %typedPtr[0, 1]: (!llvm.ptr<fullClosureTy>) -> !llvm.ptr<captureParamStructTy>
+            // clang-format on
+            auto argsPtr = rewriter.create<LLVM::GEPOp>(
+                ptrType(captureParamStructTy),
+                typedPtr,
+                ArrayRef<LLVM::GEPArg>{0, 1});
+
+            // clang-format off
+            // %loadedArgs = llvm.load %argsPtr: !llvm.ptr<captureParamStructTy>
+            // clang-format on
+            auto loadedArgs = rewriter.create<LLVM::LoadOp>(loc, argsPtr);
+
+            // unpack each struct field
+            SmallVector<Value> workerArgs;
+            workerArgs.reserve(workerFun.getArguments().size());
+
+            int64_t i = 0, numCaptureArgs = adaptor.getCaptureArgs().size();
+            for (; i < numCaptureArgs; i++) {
+                auto field = rewriter.create<LLVM::ExtractValueOp>(
+                    loadedArgs,
+                    ArrayRef<int64_t>{i});
+                workerArgs.emplace_back(field.getResult());
+            }
+            i = 0;
+            for (auto funArg : entry->getArguments()) {
+                if (i++ == 0) continue; // skip the ptr arg
+                workerArgs.emplace_back(funArg);
+            }
+
+            // finally call the worker
+            auto result = rewriter.create<LLVM::CallOp>(workerFun, workerArgs);
+            // and return
+            rewriter.create<LLVM::ReturnOp>(result.getResults());
+        }
+
+        // now for replacing the closure.box
+
+        // first we allocate memory for it
+        Value sizeOfClosure = getSizeOfType(fullClosureTy, rewriter);
+        auto mallocFun =
+            LLVM::lookupOrCreateMallocFn(moduleOp, sizeOfClosure.getType());
+        auto allocForClosure =
+            rewriter.create<LLVM::CallOp>(mallocFun, sizeOfClosure);
+
+        // then we create an instance and initialize it
+        auto closureInstance = rewriter.create<LLVM::UndefOp>(fullClosureTy);
+        auto wrapperAddress = rewriter.create<LLVM::AddressOfOp>(wrapperFun);
+        Value closureBeingBuilt = rewriter.create<LLVM::InsertValueOp>(
+            closureInstance,
+            wrapperAddress,
+            ArrayRef<int64_t>{0});
+        // initialize all captured fields
+        int64_t i = 0;
+        for (auto captArg : adaptor.getCaptureArgs()) {
+            closureBeingBuilt = rewriter.create<LLVM::InsertValueOp>(
+                closureBeingBuilt,
+                captArg,
+                ArrayRef<int64_t>{1, i});
+            i++;
+        }
+
+        // that is the type needed to store
+        auto castPtrToStrongType = rewriter.create<LLVM::BitcastOp>(
+            ptrType(fullClosureTy),
+            allocForClosure.getResults());
+
+        // finally store it into the alloc
+        rewriter.create<LLVM::StoreOp>(
+            closureBeingBuilt,
+            castPtrToStrongType.getResult());
+
+        // that is the LLVM type that the CallOp expects
+        auto castPtrToErasedTy = rewriter.create<LLVM::BitcastOp>(
+            getTypeConverter()->convertType(op.getClosureType()),
+            allocForClosure.getResults());
+
+        rewriter0.replaceOp(op, {castPtrToErasedTy.getResult()});
+
+        return success();
+    }
+};
+
+struct ConvertClosureReturnToLLVM
+        : public ConvertOpToLLVMPattern<closure::ReturnOp> {
+    using ConvertOpToLLVMPattern<closure::ReturnOp>::ConvertOpToLLVMPattern;
+
+    LogicalResult matchAndRewrite(
+        closure::ReturnOp op,
+        OpAdaptor adaptor,
+        ConversionPatternRewriter &rewriter) const override
+    {
+        return LLVM::detail::oneToOneRewrite(
+            op,
+            LLVM::ReturnOp::getOperationName(),
+            adaptor.getOperands(),
+            op->getAttrs(),
+            *getTypeConverter(),
+            rewriter);
+    }
+};
+
+struct ConvertClosureCallToLLVM
+        : public ConvertOpToLLVMPattern<closure::CallOp> {
+    using ConvertOpToLLVMPattern<closure::CallOp>::ConvertOpToLLVMPattern;
+
+    LogicalResult matchAndRewrite(
+        closure::CallOp op,
+        OpAdaptor adaptor,
+        ConversionPatternRewriter &rewriter0) const override
+    {
+        auto loc = op.getLoc();
+        ImplicitLocOpBuilder rewriter(loc, rewriter0);
+
+        auto llvmFunPtrTy =
+            getTypeConverter()->convertType(op.getClosureType());
+
+        // Given a strongly typed ptr to the closure type,
+        auto callee = adaptor.getCallee();
+
+        if (callee.getType() != llvmFunPtrTy)
+            return rewriter0.notifyMatchFailure(
+                callee.getLoc(),
+                [&](Diagnostic &diag) {
+                    diag << "Expected callee " << callee
+                         << " to have pointer type " << llvmFunPtrTy
+                         << " but got " << callee.getType() << ".";
+                });
+
+        // Load the actual wrapper function pointer.
+        // clang-format off
+        // %funPtr = llvm.load %castCallee: !llvm.ptr<llvmFuncTy>
+        // clang-format on
+        auto funPtr = rewriter.create<LLVM::LoadOp>(callee);
+
+        // the worker expects an untyped !llvm.ptr that points to itself.
+        auto erasedCalleePtr = rewriter.create<LLVM::BitcastOp>(
+            untypedPtrType(getContext()),
+            callee);
+
+        // prepare call arguments
+        SmallVector<Value> callArgs;
+        callArgs.reserve(adaptor.getCalleeOperands().size() + 2);
+        callArgs.push_back(funPtr.getResult()); // first the callee fun
+        callArgs.push_back(erasedCalleePtr);    // this is the closure ptr
+        // then all other func args
+        for (auto arg : adaptor.getCalleeOperands()) callArgs.push_back(arg);
+
+        SmallVector<Type> llvmResultTypes;
+        if (failed(getTypeConverter()->convertTypes(
+                op.getResults().getTypes(),
+                llvmResultTypes)))
+            return failure();
+
+        // clang-format off
+        // %result = llvm.call %funPtr(%callee, %calleeArgs): (!llvm.ptr, argTypes...) -> resType
+        // clang-format on
+        rewriter0.replaceOpWithNewOp<LLVM::CallOp>(
+            op.getOperation(),
+            llvmResultTypes,
+            ValueRange(callArgs));
+
+        return success();
+    }
+};
+
+struct ConvertClosureToLLVMPass
+        : public impl::ConvertClosureToLLVMBase<ConvertClosureToLLVMPass> {
+    void runOnOperation() final;
+};
+
+} // namespace
+
+void mlir::closure::populateClosureToLLVMFinalTypeConversions(
+    LLVMTypeConverter &typeConverter)
+{
+    // Convert BoxedClosure type to the underlying implementation type.
+    typeConverter.addConversion(
+        [&](closure::BoxedClosureType type) -> std::optional<Type> {
+            // turns (a1, .., an) -> b
+            // to !llvm.ptr<ptr<func<b (ptr, a1, ..., an)>>>
+            TypeConverter::SignatureConversion conversion(
+                type.getFunctionType().getInputs().size());
+            auto funcTy = type.getFunctionType();
+            auto llvmTy = typeConverter.convertFunctionSignature(
+                funcTy,
+                false,
+                conversion);
+
+            if (llvmTy)
+                // means the function type is convertible to LLVM
+                return ptrType(ptrType(insertClosureParameter(
+                    llvmTy.cast<LLVM::LLVMFunctionType>())));
+
+            return std::nullopt;
+        });
+}
+
+void mlir::closure::populateClosureToLLVMConversionPatterns(
+    LLVMTypeConverter &typeConverter,
+    RewritePatternSet &patterns)
+{
+    patterns.add<
+        ConvertClosureCallToLLVM,
+        ConvertClosureBoxToLLVM,
+        ConvertClosureReturnToLLVM>(typeConverter);
+}
+
+/***
+ * Conversion Target
+ ***/
+void ConvertClosureToLLVMPass::runOnOperation()
+{
+    LLVMTypeConverter converter(&getContext());
+
+    mlir::closure::populateClosureToLLVMFinalTypeConversions(converter);
+    const auto addUnrealizedCast =
+        [](OpBuilder &builder, Type type, ValueRange inputs, Location loc) {
+            return builder.create<UnrealizedConversionCastOp>(loc, type, inputs)
+                .getResult(0);
+        };
+    converter.addSourceMaterialization(addUnrealizedCast);
+    converter.addTargetMaterialization(addUnrealizedCast);
+
+    ConversionTarget target(getContext());
+    RewritePatternSet patterns(&getContext());
+
+    // Convert closure dialect operations.
+    populateClosureToLLVMConversionPatterns(converter, patterns);
+
+    // Remove unrealized casts wherever possible.
+    populateReconcileUnrealizedCastsPatterns(patterns);
+
+    target.addIllegalDialect<closure::ClosureDialect>();
+    target.markUnknownOpDynamicallyLegal([](Operation*) { return true; });
+
+    if (failed(applyPartialConversion(
+            getOperation(),
+            target,
+            std::move(patterns))))
+        signalPassFailure();
+}
+
+std::unique_ptr<Pass> mlir::closure::createConvertClosureToLLVMPass()
+{
+    return std::make_unique<ConvertClosureToLLVMPass>();
+}
