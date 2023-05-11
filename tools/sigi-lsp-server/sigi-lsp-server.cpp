@@ -1,6 +1,7 @@
 /// Main entry point for the sigi-mlir MLIR language server.
 
 #include "sigi-mlir/Dialect/Closure/IR/ClosureDialect.h"
+#include "sigi-mlir/Dialect/Sigi/IR/SigiDialect.h"
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
@@ -19,7 +20,7 @@ int main(int argc, char* argv[])
     DialectRegistry registry;
     registerAllDialects(registry);
 
-    registry.insert<closure::ClosureDialect>();
+    registry.insert<closure::ClosureDialect, sigi::SigiDialect>();
 
     return asMainReturnCode(MlirLspServerMain(argc, argv, registry));
 }

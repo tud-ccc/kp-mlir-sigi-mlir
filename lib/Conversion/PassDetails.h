@@ -39,6 +39,8 @@ class SigiDialect;
 
 #define GEN_PASS_DEF_CONVERTCLOSURETOLLVM
 #include "sigi-mlir/Conversion/ClosurePasses.h.inc"
+#define GEN_PASS_DEF_CONVERTSIGITOLLVM
+#include "sigi-mlir/Conversion/SigiPasses.h.inc"
 
 //===----------------------------------------------------------------------===//
 
