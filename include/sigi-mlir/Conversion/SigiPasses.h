@@ -5,6 +5,7 @@
 #pragma once
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "sigi-mlir/Conversion/SigiToLLVM/SigiToLLVM.h"
 
 namespace mlir {
 

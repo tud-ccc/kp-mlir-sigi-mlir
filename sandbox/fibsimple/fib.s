@@ -67,14 +67,24 @@
 	.cfi_def_cfa_offset 16
 	movq	%rsi, %rdx
 	movq	%rdi, %rax
-	movl	8(%rax), %edi
-	movl	12(%rax), %esi
+	movl	24(%rax), %edi
+	movl	28(%rax), %esi
 	callq	.Lclosure_worker_1
 	popq	%rcx
 	.cfi_def_cfa_offset 8
 	retq
 .Lfunc_end1:
 	.size	.Lclosure_wrapper_1, .Lfunc_end1-.Lclosure_wrapper_1
+	.cfi_endproc
+                                        # -- End function
+	.p2align	4, 0x90                         # -- Begin function closure_drop_nothing
+	.type	.Lclosure_drop_nothing,@function
+.Lclosure_drop_nothing:                 # @closure_drop_nothing
+	.cfi_startproc
+# %bb.0:
+	retq
+.Lfunc_end2:
+	.size	.Lclosure_drop_nothing, .Lfunc_end2-.Lclosure_drop_nothing
 	.cfi_endproc
                                         # -- End function
 	.p2align	4, 0x90                         # -- Begin function closure_worker_0
@@ -84,8 +94,8 @@
 # %bb.0:
 	movq	%rdi, %rax
 	retq
-.Lfunc_end2:
-	.size	.Lclosure_worker_0, .Lfunc_end2-.Lclosure_worker_0
+.Lfunc_end3:
+	.size	.Lclosure_worker_0, .Lfunc_end3-.Lclosure_worker_0
 	.cfi_endproc
                                         # -- End function
 	.p2align	4, 0x90                         # -- Begin function closure_wrapper_0
@@ -102,8 +112,8 @@
 	popq	%rcx
 	.cfi_def_cfa_offset 8
 	retq
-.Lfunc_end3:
-	.size	.Lclosure_wrapper_0, .Lfunc_end3-.Lclosure_wrapper_0
+.Lfunc_end4:
+	.size	.Lclosure_wrapper_0, .Lfunc_end4-.Lclosure_wrapper_0
 	.cfi_endproc
                                         # -- End function
 	.globl	apply                           # -- Begin function apply
@@ -122,8 +132,8 @@ apply:                                  # @apply
 	popq	%rcx
 	.cfi_def_cfa_offset 8
 	retq
-.Lfunc_end4:
-	.size	apply, .Lfunc_end4-apply
+.Lfunc_end5:
+	.size	apply, .Lfunc_end5-apply
 	.cfi_endproc
                                         # -- End function
 	.globl	show                            # -- Begin function show
@@ -143,8 +153,8 @@ show:                                   # @show
 	popq	%rcx
 	.cfi_def_cfa_offset 8
 	retq
-.Lfunc_end5:
-	.size	show, .Lfunc_end5-show
+.Lfunc_end6:
+	.size	show, .Lfunc_end6-show
 	.cfi_endproc
                                         # -- End function
 	.globl	fibloop                         # -- Begin function fibloop
@@ -178,20 +188,24 @@ fibloop:                                # @fibloop
 	sete	%al
 	movzbl	%al, %esi
 	callq	sigi_push_bool@PLT
-	movl	$8, %edi
+                                        # implicit-def: $rdi
 	callq	malloc@PLT
 	movq	40(%rsp), %rdi                  # 8-byte Reload
 	movq	%rax, %rsi
+	movq	$.Lclosure_drop_nothing, 16(%rsi)
+	movl	$0, 8(%rsi)
 	movq	$.Lclosure_wrapper_0, (%rsi)
 	callq	sigi_push_closure@PLT
-	movl	$16, %edi
+                                        # implicit-def: $rdi
 	callq	malloc@PLT
 	movl	24(%rsp), %edx                  # 4-byte Reload
 	movl	28(%rsp), %ecx                  # 4-byte Reload
 	movq	40(%rsp), %rdi                  # 8-byte Reload
 	movq	%rax, %rsi
-	movl	%edx, 12(%rax)
-	movl	%ecx, 8(%rax)
+	movl	%edx, 28(%rax)
+	movl	%ecx, 24(%rax)
+	movq	$.Lclosure_drop_nothing, 16(%rax)
+	movl	$0, 8(%rax)
 	movq	$.Lclosure_wrapper_1, (%rax)
 	callq	sigi_push_closure@PLT
 	movq	40(%rsp), %rdi                  # 8-byte Reload
@@ -203,17 +217,17 @@ fibloop:                                # @fibloop
 	movq	%rax, 48(%rsp)                  # 8-byte Spill
 	callq	sigi_pop_bool@PLT
 	testb	$1, %al
-	jne	.LBB6_1
-	jmp	.LBB6_2
-.LBB6_1:
+	jne	.LBB7_1
+	jmp	.LBB7_2
+.LBB7_1:
 	movq	48(%rsp), %rax                  # 8-byte Reload
 	movq	%rax, 8(%rsp)                   # 8-byte Spill
-	jmp	.LBB6_3
-.LBB6_2:
+	jmp	.LBB7_3
+.LBB7_2:
 	movq	32(%rsp), %rax                  # 8-byte Reload
 	movq	%rax, 8(%rsp)                   # 8-byte Spill
-	jmp	.LBB6_3
-.LBB6_3:
+	jmp	.LBB7_3
+.LBB7_3:
 	movq	8(%rsp), %rax                   # 8-byte Reload
 	movq	%rax, (%rsp)                    # 8-byte Spill
 # %bb.4:
@@ -225,8 +239,8 @@ fibloop:                                # @fibloop
 	addq	$56, %rsp
 	.cfi_def_cfa_offset 8
 	retq
-.Lfunc_end6:
-	.size	fibloop, .Lfunc_end6-fibloop
+.Lfunc_end7:
+	.size	fibloop, .Lfunc_end7-fibloop
 	.cfi_endproc
                                         # -- End function
 	.globl	__main__                        # -- Begin function __main__
@@ -248,8 +262,8 @@ __main__:                               # @__main__
 	popq	%rcx
 	.cfi_def_cfa_offset 8
 	retq
-.Lfunc_end7:
-	.size	__main__, .Lfunc_end7-__main__
+.Lfunc_end8:
+	.size	__main__, .Lfunc_end8-__main__
 	.cfi_endproc
                                         # -- End function
 	.globl	main                            # -- Begin function main
@@ -274,8 +288,8 @@ main:                                   # @main
 	popq	%rax
 	.cfi_def_cfa_offset 8
 	retq
-.Lfunc_end8:
-	.size	main, .Lfunc_end8-main
+.Lfunc_end9:
+	.size	main, .Lfunc_end9-main
 	.cfi_endproc
                                         # -- End function
 	.section	".note.GNU-stack","",@progbits

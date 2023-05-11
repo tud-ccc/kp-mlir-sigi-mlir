@@ -9,7 +9,7 @@
 
 include "PassUtil.td"
 
-// TODO uncomment me
-// def ConvertSigiToLLVM : ConvertToLlvm<"Sigi", "sigi">;
+def ConvertSigiToLLVM : ConvertToLlvm<"Sigi", "sigi">;
+
 
 #endif // SIGI_CONVERSION_PASSES

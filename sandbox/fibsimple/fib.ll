@@ -1,13 +1,11 @@
 ; ModuleID = 'LLVMDialectModule'
 source_filename = "LLVMDialectModule"
 
-declare ptr @malloc(i64)
-
-declare void @free(ptr)
-
 declare void @sigi_free_stack(ptr)
 
 declare void @sigi_init_stack(ptr)
+
+declare void @free(ptr)
 
 declare i1 @sigi_pop_bool(ptr)
 
@@ -31,7 +29,7 @@ define private ptr @closure_worker_1(i32 %0, i32 %1, ptr %2) {
 }
 
 define private ptr @closure_wrapper_1(ptr %0, ptr %1) {
-  %3 = getelementptr { ptr, { i32, i32 } }, ptr %0, i32 0, i32 1
+  %3 = getelementptr { ptr, i32, ptr, { i32, i32 } }, ptr %0, i32 0, i32 3
   %4 = load { i32, i32 }, ptr %3, align 4
   %5 = extractvalue { i32, i32 } %4, 0
   %6 = extractvalue { i32, i32 } %4, 1
@@ -41,15 +39,23 @@ define private ptr @closure_wrapper_1(ptr %0, ptr %1) {
 
 declare void @sigi_push_closure(ptr, ptr)
 
+declare ptr @malloc(i64)
+
+define private void @closure_drop_nothing(ptr %0) {
+  ret void
+}
+
 define private ptr @closure_worker_0(ptr %0) {
   ret ptr %0
 }
 
 define private ptr @closure_wrapper_0(ptr %0, ptr %1) {
-  %3 = getelementptr { ptr, {} }, ptr %0, i32 0, i32 1
+  %3 = getelementptr { ptr, i32, ptr, {} }, ptr %0, i32 0, i32 3
   %4 = call ptr @closure_worker_0(ptr %1)
   ret ptr %4
 }
+
+declare void @closure_decr_then_drop(ptr)
 
 declare void @sigi_push_bool(ptr, i1)
 
@@ -83,13 +89,13 @@ define ptr @fibloop(ptr %0) {
   %5 = call i32 @sigi_pop_i32(ptr %0)
   %6 = icmp eq i32 %5, %4
   call void @sigi_push_bool(ptr %0, i1 %6)
-  %7 = call ptr @malloc(i64 ptrtoint (ptr getelementptr ({ ptr, {} }, ptr null, i32 1) to i64))
-  store { ptr, {} } { ptr @closure_wrapper_0, {} undef }, ptr %7, align 8
+  %7 = call ptr @malloc(i64 undef)
+  store { ptr, i32, ptr, {} } { ptr @closure_wrapper_0, i32 0, ptr @closure_drop_nothing, {} undef }, ptr %7, align 8
   call void @sigi_push_closure(ptr %0, ptr %7)
-  %8 = call ptr @malloc(i64 ptrtoint (ptr getelementptr ({ ptr, { i32, i32 } }, ptr null, i32 1) to i64))
-  %9 = insertvalue { ptr, { i32, i32 } } { ptr @closure_wrapper_1, { i32, i32 } undef }, i32 %3, 1, 0
-  %10 = insertvalue { ptr, { i32, i32 } } %9, i32 %2, 1, 1
-  store { ptr, { i32, i32 } } %10, ptr %8, align 8
+  %8 = call ptr @malloc(i64 undef)
+  %9 = insertvalue { ptr, i32, ptr, { i32, i32 } } { ptr @closure_wrapper_1, i32 0, ptr @closure_drop_nothing, { i32, i32 } undef }, i32 %3, 3, 0
+  %10 = insertvalue { ptr, i32, ptr, { i32, i32 } } %9, i32 %2, 3, 1
+  store { ptr, i32, ptr, { i32, i32 } } %10, ptr %8, align 8
   call void @sigi_push_closure(ptr %0, ptr %8)
   %11 = call ptr @sigi_pop_closure(ptr %0)
   %12 = call ptr @sigi_pop_closure(ptr %0)

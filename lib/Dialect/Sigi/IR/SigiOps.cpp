@@ -31,3 +31,68 @@ void SigiDialect::registerOps()
 #include "sigi-mlir/Dialect/Sigi/IR/SigiOps.cpp.inc"
         >();
 }
+
+// parsers/printers
+
+ParseResult PushOp::parse(OpAsmParser &parser, OperationState &result)
+{
+    OpAsmParser::UnresolvedOperand stackOperand;
+    OpAsmParser::UnresolvedOperand valueOperand;
+    Type valueType;
+
+    if (parser.parseOperand(stackOperand) || parser.parseComma()
+        || parser.parseOperand(valueOperand)
+        || parser.parseColonType(valueType))
+        return failure();
+
+    SmallVector<Value, 1> stackOpResolved;
+    SmallVector<Value, 1> valueOpResolved;
+    if (parser.resolveOperand(
+            stackOperand,
+            sigi::StackType::get(parser.getContext()),
+            stackOpResolved)
+        || parser.resolveOperand(valueOperand, valueType, valueOpResolved))
+        return failure();
+
+    result.addAttribute(
+        getValueTypeAttrName(result.name),
+        TypeAttr::get(valueType));
+    result.addOperands(stackOpResolved);
+    result.addOperands(valueOpResolved);
+    result.addTypes({sigi::StackType::get(parser.getContext())});
+    return success();
+}
+
+ParseResult PopOp::parse(OpAsmParser &parser, OperationState &result)
+{
+    OpAsmParser::UnresolvedOperand stackOperand;
+    Type valueType;
+
+    if (parser.parseOperand(stackOperand) || parser.parseColonType(valueType))
+        return failure();
+
+    SmallVector<Value, 1> stackOpResolved;
+    if (parser.resolveOperand(
+            stackOperand,
+            sigi::StackType::get(parser.getContext()),
+            stackOpResolved))
+        return failure();
+
+    result.addAttribute(
+        getValueTypeAttrName(result.name),
+        TypeAttr::get(valueType));
+
+    result.addOperands(stackOpResolved);
+    result.addTypes({sigi::StackType::get(parser.getContext()), valueType});
+    return success();
+}
+
+void PushOp::print(OpAsmPrinter &printer)
+{
+    printer << " " << getInStack() << ", " << getValue() << " : " << getValueType();
+}
+
+void PopOp::print(OpAsmPrinter &printer)
+{
+    printer << " " << getInStack() << " : " << getValueType();
+}
