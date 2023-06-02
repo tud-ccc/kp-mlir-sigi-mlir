@@ -20,7 +20,7 @@ typedef struct sigi_value {
     union value_data {
         int32_t i32;
         bool boolean;
-        void* closure;
+        closure_t* closure;
     } data;
 } sigi_value;
 
@@ -93,7 +93,7 @@ void sigi_push_i32(sigi_stack_t* stack, int32_t value)
     sigi_value v = {.tag = TAG_I32, .data = {.i32 = value}};
     grow1(stack, v);
 }
-void sigi_push_closure(sigi_stack_t* stack, void* value)
+void sigi_push_closure(sigi_stack_t* stack, closure_t* value)
 {
     sigi_value v = {.tag = TAG_CLOSURE, .data = {.closure = value}};
     grow1(stack, v);
@@ -111,7 +111,7 @@ void check_tag(sigi_value value, value_tag expected_tag)
         exit(1);
     }
 }
-void* sigi_pop_closure(sigi_stack_t* stack)
+closure_t* sigi_pop_closure(sigi_stack_t* stack)
 {
     sigi_value value = pop1(stack);
     check_tag(value, TAG_CLOSURE);
