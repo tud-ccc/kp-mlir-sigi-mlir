@@ -12,6 +12,14 @@ module {
     %4 = llvm.call @closure_worker_0(%3, %arg1) : (i32, i32) -> i32
     llvm.return %4 : i32
   }
+  llvm.func private @closure_drop_0(%arg0: !llvm.ptr) {
+    %0 = llvm.bitcast %arg0 : !llvm.ptr to !llvm.ptr<struct<(ptr<func<i32 (ptr, i32)>>, i32, ptr<func<void(ptr)>>, struct<(i32)>)>>
+    %1 = llvm.getelementptr %0[0, 1] : (!llvm.ptr<struct<(ptr<func<i32 (ptr, i32)>>, i32, ptr<func<void(ptr)>>, struct<(i32)>)>>) -> !llvm.ptr<struct<(i32)>>
+    // for each closure field: 
+    %2 = llvm.load %1 : !llvm.ptr<struct<(i32)>>
+    %3 = llvm.extractvalue %2[0] : !llvm.struct<(i32)> 
+    llvm.return %4 : i32
+  }
   llvm.func @printf(!llvm.ptr, ...) -> i32
   llvm.mlir.global private constant @intFmt("%d\0A\00") {addr_space = 0 : i32}
   llvm.func @main() {
