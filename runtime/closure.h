@@ -23,3 +23,5 @@ typedef struct closure_t {
 /// virtual drop function to recursively dec_or_drop fields, then
 /// free the allocation.
 void closure_dec_or_drop(closure_t* closure);
+/// Increment the reference count.
+void closure_incr(closure_t* closure);

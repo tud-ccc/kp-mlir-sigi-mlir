@@ -131,6 +131,8 @@ def BoxOp : Closure_Op<"box", [
     /// Returns the results types that the callable region produces when
     /// executed.
     ArrayRef<Type> getCallableResults() { return getFunctionType().getResults(); }
+    ArrayAttr getCallableArgAttrs() { return {}; }
+    ArrayAttr getCallableResAttrs() { return {}; }
 
     ::mlir::ArrayAttr getCallableArgAttrs() { return nullptr; }
     ::mlir::ArrayAttr getCallableResAttrs() { return nullptr; }

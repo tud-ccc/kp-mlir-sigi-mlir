@@ -22,13 +22,14 @@ def Closure_Dialect : Dialect {
 
     let useDefaultTypePrinterParser = 1;
 
-
     code extraClassDeclaration = [{
     private:
         void registerOps();
         void registerTypes();
     }];
 }
+
+
 
 // Template for attributes.
 // class Closure_Attr<string name, list<Trait> traits = []>

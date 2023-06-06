@@ -10,3 +10,7 @@ void closure_dec_or_drop(closure_t* closure) {
         free(closure);
     }
 }
+
+void closure_incr(closure_t* closure) {
+    closure->refcount++;
+}
