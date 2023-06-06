@@ -360,6 +360,10 @@ void mlir::sigi::populateSigiToLLVMConversionPatterns(
         ConvertSigiMainFuncToLLVM,
         ConvertSigiFrontendFwdDecl>(typeConverter);
 }
+bool mlir::sigi::isSigiLlvmStackType(Type ty)
+{
+    return llvmStackType(ty.getContext()) == ty;
+}
 
 /***
  * Conversion Target

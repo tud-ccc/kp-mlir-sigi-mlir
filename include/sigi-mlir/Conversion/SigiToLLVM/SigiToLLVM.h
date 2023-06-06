@@ -10,6 +10,8 @@
 
 namespace mlir::sigi {
 
+bool isSigiLlvmStackType(Type ty);
+
 void populateSigiToLLVMConversionPatterns(
     LLVMTypeConverter &typeConverter,
     RewritePatternSet &patterns);
