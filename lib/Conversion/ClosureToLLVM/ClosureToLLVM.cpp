@@ -271,7 +271,7 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
             auto argsPtr = rewriter.create<LLVM::GEPOp>(
                 ptrType(captureParamStructTy),
                 typedPtr,
-                ArrayRef<LLVM::GEPArg>{0, 1});
+                ArrayRef<LLVM::GEPArg>{0, 3});
 
             // clang-format off
             // %loadedArgs = llvm.load %argsPtr: !llvm.ptr<captureParamStructTy>
@@ -336,7 +336,7 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
                 auto argsPtr = rewriter.create<LLVM::GEPOp>(
                     ptrType(captureParamStructTy),
                     typedPtr,
-                    ArrayRef<LLVM::GEPArg>{0, 1});
+                    ArrayRef<LLVM::GEPArg>{0, 3});
 
                 // clang-format off
                 // %loadedArgs = llvm.load %argsPtr: !llvm.ptr<captureParamStructTy>
@@ -380,9 +380,9 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
         auto closureInstance = rewriter.create<LLVM::UndefOp>(fullClosureTy);
         auto wrapperAddress = rewriter.create<LLVM::AddressOfOp>(wrapperFun);
         auto dropAddress = rewriter.create<LLVM::AddressOfOp>(dropFun);
-        auto initialRefCount = rewriter.create<LLVM::ConstantOp>(
-            refCountType,
-            1); // initially the closure is allocated with a refcount of 1
+        // initially the closure is allocated with a refcount of 0
+        auto initialRefCount =
+            rewriter.create<LLVM::ConstantOp>(refCountType, 0);
         Value closureBeingBuilt = rewriter.create<LLVM::InsertValueOp>(
             closureInstance,
             wrapperAddress,
@@ -468,7 +468,10 @@ struct ConvertClosureDropToLLVM
             dropFunc.getArgumentTypes()[0],
             adaptor.getCallee());
 
-        rewriter0.replaceOpWithNewOp<LLVM::CallOp>(op, dropFunc, cast.getResult());
+        rewriter0.replaceOpWithNewOp<LLVM::CallOp>(
+            op,
+            dropFunc,
+            cast.getResult());
 
         return success();
     }

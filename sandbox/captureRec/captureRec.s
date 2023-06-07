@@ -31,7 +31,7 @@
 # %bb.0:
 	pushq	%rax
 	.cfi_def_cfa_offset 16
-	movq	8(%rdi), %rdi
+	movq	24(%rdi), %rdi
 	callq	closure_decr_then_drop@PLT
 	popq	%rax
 	.cfi_def_cfa_offset 8
@@ -47,7 +47,7 @@
 # %bb.0:
 	pushq	%rax
 	.cfi_def_cfa_offset 16
-	movq	8(%rdi), %rdi
+	movq	24(%rdi), %rdi
 	callq	.Lclosure_worker_1
 	popq	%rcx
 	.cfi_def_cfa_offset 8
@@ -133,20 +133,21 @@ apply:                                  # @apply
 __main__:                               # @__main__
 	.cfi_startproc
 # %bb.0:
-	subq	$40, %rsp
-	.cfi_def_cfa_offset 48
+	subq	$56, %rsp
+	.cfi_def_cfa_offset 64
 	movq	%rdi, 32(%rsp)                  # 8-byte Spill
 	movl	$24, %edi
 	callq	malloc@PLT
 	movq	32(%rsp), %rdi                  # 8-byte Reload
 	movq	%rax, %rsi
 	movq	$.Lclosure_drop_nothing, 16(%rsi)
-	movl	$1, 8(%rsi)
+	movl	$0, 8(%rsi)
 	movq	$.Lclosure_wrapper_0, (%rsi)
 	callq	sigi_push_closure@PLT
 	movq	32(%rsp), %rdi                  # 8-byte Reload
 	callq	sigi_pop_closure@PLT
 	movq	%rax, 8(%rsp)                   # 8-byte Spill
+	movq	%rax, 40(%rsp)                  # 8-byte Spill
 	movl	$32, %edi
 	callq	malloc@PLT
 	movq	8(%rsp), %rdi                   # 8-byte Reload
@@ -159,12 +160,16 @@ __main__:                               # @__main__
 	movq	32(%rsp), %rdi                  # 8-byte Reload
 	movq	%rcx, 24(%rax)
 	movq	$.Lclosure_drop_0, 16(%rax)
-	movl	$1, 8(%rax)
+	movl	$0, 8(%rax)
 	movq	$.Lclosure_wrapper_1, (%rax)
 	callq	sigi_push_closure@PLT
 	movq	32(%rsp), %rdi                  # 8-byte Reload
 	callq	apply@PLT
-	addq	$40, %rsp
+	movq	40(%rsp), %rdi                  # 8-byte Reload
+	movq	%rax, 48(%rsp)                  # 8-byte Spill
+	callq	closure_check_drop@PLT
+	movq	48(%rsp), %rax                  # 8-byte Reload
+	addq	$56, %rsp
 	.cfi_def_cfa_offset 8
 	retq
 .Lfunc_end7:

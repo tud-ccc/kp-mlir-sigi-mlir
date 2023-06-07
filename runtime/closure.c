@@ -1,5 +1,6 @@
 
 #include <memory.h>
+#include <stdio.h>
 #include "closure.h"
 
 
@@ -9,12 +10,14 @@ void closure_decr(closure_t* closure) {
 }
 
 void closure_decr_then_drop(closure_t* closure) {
+    closure_decr(closure);
     closure_check_drop(closure);
 }
 
 void closure_check_drop(closure_t* closure) {
     if (closure->refcount == 0) {
         closure->drop(closure);
+        printf("free\n");
         free(closure);
     }
 }
