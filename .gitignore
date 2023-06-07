@@ -3,3 +3,4 @@ build-*
 build*
 *.exe
 .env
+cmake-build*

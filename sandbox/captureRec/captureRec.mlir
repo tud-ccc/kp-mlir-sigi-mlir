@@ -5,7 +5,6 @@ module {
         // -> \f;
         %s1, %v1_f = sigi.pop %s0: !closure.box<(!sigi.stack) -> !sigi.stack> // f: (-> (-> int), (-> int))
         %s2 = closure.call %v1_f (%s1) : !closure.box<(!sigi.stack) -> !sigi.stack> // call f: -> (-> int), (-> int)
-        closure.maybe_drop %v1_f : !closure.box<(!sigi.stack) -> !sigi.stack>
         return %s2: !sigi.stack
     }
     // __main__: -> (-> int), (-> int)

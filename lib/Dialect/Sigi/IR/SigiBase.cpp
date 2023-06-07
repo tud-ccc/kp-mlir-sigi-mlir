@@ -21,26 +21,9 @@ using namespace mlir::sigi;
 // SigiDialect
 //===----------------------------------------------------------------------===//
 
-namespace {
-
-struct SigiOpAsmInterface : public OpAsmDialectInterface {
-    using OpAsmDialectInterface::OpAsmDialectInterface;
-    SigiOpAsmInterface(Dialect* dialect) : OpAsmDialectInterface(dialect) {}
-
-    AliasResult getAlias(Type type, raw_ostream &os) const override
-    {
-        if (isSigiLlvmStackType(type)) {
-            os << "sigi_stackptr";
-            return AliasResult::FinalAlias;
-        }
-        return AliasResult::NoAlias;
-    }
-};
-} // namespace
 
 void SigiDialect::initialize()
 {
     registerOps();
     registerTypes();
-    addInterface<SigiOpAsmInterface>();
 }
