@@ -172,7 +172,7 @@ def ReturnOp : Closure_Op<"return", [Pure, HasParent<"BoxOp">,
 
 }
 
-def DropOp : Closure_Op<"maybe_drop", []> {
+def DropOp : Closure_Op<"check_drop", []> {
   let summary = "If the closure reference count is zero, drop the closure recursively. This does not mutate the reference count.";
   let description = [{
   }];
