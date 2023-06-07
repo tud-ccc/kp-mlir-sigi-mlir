@@ -6,6 +6,7 @@
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "sigi-mlir/Conversion/SigiToLLVM/SigiToLLVM.h"
+#include "sigi-mlir/Conversion/SigiInsertDropChecks/SigiInsertDropChecks.h"
 
 namespace mlir {
 

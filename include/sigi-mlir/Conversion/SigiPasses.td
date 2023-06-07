@@ -11,7 +11,7 @@ include "PassUtil.td"
 
 def ConvertSigiToLLVM : ConvertToLlvm<"Sigi", "sigi">;
 
-class InsertDropChecks : Pass<"sigi-insert-drop-checks"> {
+def SigiInsertDropChecks : Pass<"sigi-insert-drop-checks"> {
   let summary = "Insert drop checks for closures.";
 
   let constructor = "mlir::sigi::createInsertDropChecksPass()";
