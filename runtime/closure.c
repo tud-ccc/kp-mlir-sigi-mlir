@@ -4,8 +4,13 @@
 
 
 /// todo implement that in LLVM IR.
-void closure_dec_or_drop(closure_t* closure) {
-    if (--closure->refcount == 0) {
+void closure_dec_then_drop(closure_t* closure) {
+    --closure->refcount;
+    closure_check_drop(closure);
+}
+
+void closure_check_drop(closure_t* closure) {
+    if (closure->refcount == 0) {
         closure->drop(closure);
         free(closure);
     }

@@ -172,4 +172,29 @@ def ReturnOp : Closure_Op<"return", [Pure, HasParent<"BoxOp">,
 
 }
 
+def DropOp : Closure_Op<"maybe_drop", []> {
+  let summary = "If the closure reference count is zero, drop the closure recursively. This does not mutate the reference count.";
+  let description = [{
+  }];
+
+  let arguments = (ins Closure_BoxType:$callee);
+  let results = (outs);
+
+  let extraClassDeclaration = [{
+    FunctionType getCalleeType() {
+      return getCallee().getType().cast<BoxedClosureType>().getFunctionType();
+    }
+
+    BoxedClosureType getClosureType() {
+      return BoxedClosureType::get(getContext(), getCalleeType());
+    }
+
+  }];
+
+  let assemblyFormat = [{
+    $callee  attr-dict `:` type($callee)
+  }];
+}
+
+
 #endif

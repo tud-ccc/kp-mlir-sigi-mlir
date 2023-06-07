@@ -61,11 +61,25 @@ insertClosureParameter(LLVM::LLVMFunctionType funTy)
         funTy.isVarArg());
 }
 
-static LLVM::LLVMFuncOp getDecrOrDropFunc(ModuleOp moduleOp, MLIRContext* ctx)
+/// Return the function that checks decrements the refcount and checks if it is
+/// zero.
+static LLVM::LLVMFuncOp getDecrOrDropFunc(ModuleOp moduleOp)
 {
+    auto ctx = moduleOp->getContext();
     return LLVM::lookupOrCreateFn(
         moduleOp,
-        "closure_dec_or_drop",
+        "closure_dec_then_drop",
+        {untypedPtrType(ctx)},
+        LLVM::LLVMVoidType::get(ctx));
+}
+/// Return the function that drops a closure if its refcount is zero. Does not
+/// decrement the refcount.
+static LLVM::LLVMFuncOp getCheckDropFunc(ModuleOp moduleOp)
+{
+    auto ctx = moduleOp->getContext();
+    return LLVM::lookupOrCreateFn(
+        moduleOp,
+        "closure_check_drop",
         {untypedPtrType(ctx)},
         LLVM::LLVMVoidType::get(ctx));
 }
@@ -87,6 +101,7 @@ getNoopDropFunc(ModuleOp moduleOp, ImplicitLocOpBuilder &rewriter)
         "closure_drop_nothing",
         {untypedPtrType(rewriter.getContext())},
         LLVM::LLVMVoidType::get(rewriter.getContext()));
+    func.setLinkage(LLVM::Linkage::Private);
 
     if (func.empty()) {
         ConversionPatternRewriter::InsertionGuard guard(rewriter);
@@ -185,7 +200,7 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
             getVoidType(),
             {untypedPtrType(getContext())},
             false);
-        auto decOrDropFunc = getDecrOrDropFunc(moduleOp, getContext());
+        auto decOrDropFunc = getDecrOrDropFunc(moduleOp);
         auto refCountType = rewriter.getI32Type();
 
         LLVM::LLVMFuncOp workerFun;
@@ -434,6 +449,30 @@ struct ConvertClosureReturnToLLVM
             rewriter);
     }
 };
+struct ConvertClosureDropToLLVM
+        : public ConvertOpToLLVMPattern<closure::DropOp> {
+    using ConvertOpToLLVMPattern<closure::DropOp>::ConvertOpToLLVMPattern;
+
+    LogicalResult matchAndRewrite(
+        closure::DropOp op,
+        OpAdaptor adaptor,
+        ConversionPatternRewriter &rewriter0) const override
+    {
+        auto moduleOp = op->getParentOfType<ModuleOp>();
+
+        LLVM::LLVMFuncOp popFunc;
+        auto dropFunc = getCheckDropFunc(moduleOp);
+
+        auto cast = rewriter0.create<LLVM::BitcastOp>(
+            op.getLoc(),
+            dropFunc.getArgumentTypes()[0],
+            adaptor.getCallee());
+
+        rewriter0.replaceOpWithNewOp<LLVM::CallOp>(op, dropFunc, cast.getResult());
+
+        return success();
+    }
+};
 
 struct ConvertClosureCallToLLVM
         : public ConvertOpToLLVMPattern<closure::CallOp> {
@@ -539,6 +578,7 @@ void mlir::closure::populateClosureToLLVMConversionPatterns(
     patterns.add<
         ConvertClosureCallToLLVM,
         ConvertClosureBoxToLLVM,
+        ConvertClosureDropToLLVM,
         ConvertClosureReturnToLLVM>(typeConverter);
 }
 

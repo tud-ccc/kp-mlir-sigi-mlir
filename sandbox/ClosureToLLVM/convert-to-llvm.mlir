@@ -15,11 +15,9 @@ llvm.func @main() {
         %9 = arith.addi %2, %1: i32
         closure.return %9: i32
     }
+
     %res = closure.call %6(%cst1): !closure.box<(i32) -> i32>
 
-    // todo figure out how to make a string literal for printf
-    // this tutorial https://mlir.llvm.org/docs/Tutorials/Toy/Ch-6/
-    // omits this part....
     %fmt = llvm.mlir.addressof @intFmt: !llvm.ptr
     llvm.call @printf(%fmt, %res): (!llvm.ptr, i32) -> i32
 
