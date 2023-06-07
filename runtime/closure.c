@@ -4,8 +4,11 @@
 
 
 /// todo implement that in LLVM IR.
-void closure_dec_then_drop(closure_t* closure) {
-    --closure->refcount;
+void closure_decr(closure_t* closure) {
+    closure->refcount--;
+}
+
+void closure_decr_then_drop(closure_t* closure) {
     closure_check_drop(closure);
 }
 

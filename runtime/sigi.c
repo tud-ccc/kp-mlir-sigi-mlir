@@ -95,6 +95,7 @@ void sigi_push_i32(sigi_stack_t* stack, int32_t value)
 }
 void sigi_push_closure(sigi_stack_t* stack, closure_t* value)
 {
+    closure_incr(value);
     sigi_value v = {.tag = TAG_CLOSURE, .data = {.closure = value}};
     grow1(stack, v);
 }
@@ -115,6 +116,7 @@ closure_t* sigi_pop_closure(sigi_stack_t* stack)
 {
     sigi_value value = pop1(stack);
     check_tag(value, TAG_CLOSURE);
+    closure_decr(value.data.closure);
     return value.data.closure;
 }
 int32_t sigi_pop_i32(sigi_stack_t* stack)
@@ -144,11 +146,14 @@ void sigi_print_stack_top_ln(sigi_stack_t* stack)
             printf("false\n");
         break;
     case TAG_I32: printf("%d\n", top->data.i32); break;
-    case TAG_CLOSURE: printf("(opaque closure)\n"); break;
+    case TAG_CLOSURE:
+        printf("(opaque closure, rc=%d)\n", top->data.closure->refcount);
+        break;
     }
 }
 
-sigi_stack_t* sigi_builtin__pp(sigi_stack_t* stack) { 
+sigi_stack_t* sigi_builtin__pp(sigi_stack_t* stack)
+{
     sigi_print_stack_top_ln(stack);
     return stack;
 }

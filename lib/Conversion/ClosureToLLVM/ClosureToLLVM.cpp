@@ -68,7 +68,7 @@ static LLVM::LLVMFuncOp getDecrOrDropFunc(ModuleOp moduleOp)
     auto ctx = moduleOp->getContext();
     return LLVM::lookupOrCreateFn(
         moduleOp,
-        "closure_dec_then_drop",
+        "closure_decr_then_drop",
         {untypedPtrType(ctx)},
         LLVM::LLVMVoidType::get(ctx));
 }

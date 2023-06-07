@@ -22,9 +22,10 @@ typedef struct closure_t {
 /// Decrement the reference count. If refcount is zero, call the 
 /// virtual drop function to recursively dec_or_drop fields, then
 /// free the allocation.
-void closure_dec_then_drop(closure_t* closure);
+void closure_decr_then_drop(closure_t* closure);
 /// If refcount is zero, drop the closure and all its fields.
 /// Does not change the refcount.
 void closure_check_drop(closure_t* closure);
 /// Increment the reference count.
 void closure_incr(closure_t* closure);
+void closure_decr(closure_t* closure);
