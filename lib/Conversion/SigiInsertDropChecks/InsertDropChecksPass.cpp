@@ -28,6 +28,43 @@ static bool closureNeedsDrop(Value closureVal)
     return !anyUse; // only check if there are no usages.
 }
 
+template<typename TerminatorOp>
+static void exploreRegion(Region &region, ConversionPatternRewriter &rewriter0)
+{
+    // accumulate the closures in the region that need a drop at the end
+    // of the region.
+    SmallVector<Value> closuresInBody;
+    SmallVector<Operation*> funcTerminators;
+    SmallVector<closure::BoxOp> closuresToExplore;
+    for (Block &block : region.getBlocks()) {
+        for (Operation &op : block.getOperations()) {
+            Value checkVal;
+            if (auto box = dyn_cast<closure::BoxOp>(op)) {
+                checkVal = box.getResult();
+                // recursive call
+                exploreRegion<closure::ReturnOp>(box.getRegion(), rewriter0);
+            } else if (auto pop = dyn_cast<sigi::PopOp>(op)) {
+                if (pop.getValueType().isa<closure::BoxedClosureType>())
+                    checkVal = pop.getValue();
+            }
+            if (checkVal && closureNeedsDrop(checkVal))
+                closuresInBody.emplace_back(checkVal);
+
+            if (auto ret = dyn_cast<TerminatorOp>(op))
+                funcTerminators.push_back(ret);
+        }
+    }
+
+    if (!closuresInBody.empty()) {
+        for (auto ret : funcTerminators) {
+            ConversionPatternRewriter::InsertionGuard guard(rewriter0);
+            rewriter0.setInsertionPoint(ret);
+            for (auto closure : closuresInBody)
+                rewriter0.create<closure::DropOp>(ret->getLoc(), closure);
+        }
+    }
+}
+
 void SigiInsertDropChecksPass::runOnOperation()
 {
     // todo make that generic over any functionopinterface
@@ -42,43 +79,7 @@ void SigiInsertDropChecksPass::runOnOperation()
         FunctionType::get(&getContext(), {sigiStackTy}, {sigiStackTy});
     if (funTy == sigiFunTy) {
         // this looks like a sigi function
-
-        // The following is not control-flow resilient...
-        // It assumes the frontend emits straight-line code.
-        Region &body = op.getBody();
-
-        // accumulate the closures in the body that need a drop at the end
-        // of the body
-        SmallVector<Value> closuresInBody;
-        SmallVector<func::ReturnOp> funcTerminators;
-        for (Block &block : body.getBlocks()) {
-            for (Operation &op : block.getOperations()) {
-                Value checkVal;
-                if (auto box = dyn_cast<closure::BoxOp>(op)) {
-                    checkVal = box.getResult();
-                } else if (auto pop = dyn_cast<sigi::PopOp>(op)) {
-                    if (pop.getValueType().isa<closure::BoxedClosureType>())
-                        checkVal = pop.getValue();
-                }
-                if (checkVal && closureNeedsDrop(checkVal))
-                    closuresInBody.emplace_back(checkVal);
-
-                if (auto ret = dyn_cast<func::ReturnOp>(op))
-                    funcTerminators.emplace_back(ret);
-            }
-        }
-
-        if (!closuresInBody.empty()) {
-            rewriter0.startRootUpdate(op);
-
-            for (auto ret : funcTerminators) {
-                ConversionPatternRewriter::InsertionGuard guard(rewriter);
-                rewriter.setInsertionPoint(ret);
-                for (auto closure : closuresInBody)
-                    rewriter.create<closure::DropOp>(closure);
-            }
-            rewriter0.finalizeRootUpdate(op);
-        }
+        exploreRegion<func::ReturnOp>(op.getBody(), rewriter0);
     }
 }
 
