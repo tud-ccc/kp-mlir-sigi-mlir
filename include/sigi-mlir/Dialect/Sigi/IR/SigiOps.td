@@ -57,6 +57,7 @@ def PopOp : Sigi_Op<"pop", [Pure]> {
   }];
 
   let hasCustomAssemblyFormat = 1;
+  let hasCanonicalizer = 1;
 }
 
 #endif

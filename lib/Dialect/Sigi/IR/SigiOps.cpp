@@ -6,6 +6,7 @@
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/Transforms/DialectConversion.h"
 
 #include "llvm/ADT/APFloat.h"
 
@@ -95,4 +96,30 @@ void PushOp::print(OpAsmPrinter &printer)
 void PopOp::print(OpAsmPrinter &printer)
 {
     printer << " " << getInStack() << " : " << getValueType();
+}
+
+namespace {
+/// @brief Fold a push followed by a pop into nothing.
+class SigiPushPopFolder : public OpRewritePattern<sigi::PopOp> {
+    using OpRewritePattern::OpRewritePattern;
+
+    LogicalResult
+    matchAndRewrite(sigi::PopOp pop, PatternRewriter &rewriter0) const override
+    {
+
+        if (auto push = pop.getInStack().getDefiningOp<sigi::PushOp>()) {
+            rewriter0.replaceOp(pop, {push.getInStack(), push.getValue()});
+            return success();
+        }
+        return failure();
+    }
+};
+
+} // namespace
+
+void PopOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns,
+    MLIRContext* context)
+{
+    patterns.add<SigiPushPopFolder>(context);
 }
