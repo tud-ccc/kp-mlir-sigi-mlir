@@ -2,6 +2,7 @@
 #include "../PassDetails.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/IR/Visitors.h"
 #include "sigi-mlir/Conversion/SigiInsertDropChecks/SigiInsertDropChecks.h"
 #include "sigi-mlir/Dialect/Closure/IR/ClosureOps.h"
 #include "sigi-mlir/Dialect/Sigi/IR/SigiOps.h"
@@ -29,6 +30,7 @@ static bool closureNeedsDrop(Value closureVal)
 
 void SigiInsertDropChecksPass::runOnOperation()
 {
+    // todo make that generic over any functionopinterface
     func::FuncOp op = getOperation();
     ConversionPatternRewriter rewriter0(&getContext());
     auto loc = op.getLoc();
@@ -49,20 +51,22 @@ void SigiInsertDropChecksPass::runOnOperation()
         // of the body
         SmallVector<Value> closuresInBody;
         SmallVector<func::ReturnOp> funcTerminators;
-        body.walk([&closuresInBody, &funcTerminators](Operation* op) {
-            Value checkVal;
-            if (auto box = dyn_cast<closure::BoxOp>(op)) {
-                checkVal = box.getResult();
-            } else if (auto pop = dyn_cast<sigi::PopOp>(op)) {
-                if (pop.getValueType().isa<closure::BoxedClosureType>())
-                    checkVal = pop.getValue();
-            }
-            if (checkVal && closureNeedsDrop(checkVal))
-                closuresInBody.emplace_back(checkVal);
+        for (Block &block : body.getBlocks()) {
+            for (Operation &op : block.getOperations()) {
+                Value checkVal;
+                if (auto box = dyn_cast<closure::BoxOp>(op)) {
+                    checkVal = box.getResult();
+                } else if (auto pop = dyn_cast<sigi::PopOp>(op)) {
+                    if (pop.getValueType().isa<closure::BoxedClosureType>())
+                        checkVal = pop.getValue();
+                }
+                if (checkVal && closureNeedsDrop(checkVal))
+                    closuresInBody.emplace_back(checkVal);
 
-            if (auto ret = dyn_cast<func::ReturnOp>(op))
-                funcTerminators.emplace_back(ret);
-        });
+                if (auto ret = dyn_cast<func::ReturnOp>(op))
+                    funcTerminators.emplace_back(ret);
+            }
+        }
 
         if (!closuresInBody.empty()) {
             rewriter0.startRootUpdate(op);
