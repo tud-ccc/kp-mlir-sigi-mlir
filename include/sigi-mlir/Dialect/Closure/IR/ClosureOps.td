@@ -63,7 +63,7 @@ def CallOp : Closure_Op<"call",
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() {
-      return (*this)->getAttrOfType<SymbolRefAttr>("callee");
+      return this->getCallee();
     }
     void setCalleeFromCallable(CallInterfaceCallable callable) {
       // todo
