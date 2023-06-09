@@ -35,6 +35,7 @@ def CallOp : Closure_Op<"call",
   let summary = "call operation";
   let description = [{
   }];
+  let hasCanonicalizer = 1;
 
   let arguments = (ins Closure_BoxType:$callee,
                        Variadic<AnyType>:$callee_operands);

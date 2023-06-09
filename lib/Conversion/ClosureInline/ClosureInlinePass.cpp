@@ -20,6 +20,7 @@
 #include "mlir/IR/SymbolTable.h"
 #include "sigi-mlir/Conversion/ClosureInline/ClosureInline.h"
 #include "sigi-mlir/Dialect/Closure/IR/ClosureDialect.h"
+#include "sigi-mlir/Dialect/Sigi/IR/SigiDialect.h"
 
 using namespace mlir;
 using namespace mlir::closure;
@@ -27,9 +28,12 @@ using namespace mlir::closure;
 namespace {
 
 /// @brief Duplicate a closure.call whose callee is an scf.if into each branch
-/// of the if
-struct DupClosureCall : public OpRewritePattern<closure::CallOp> {
-    using OpRewritePattern::OpRewritePattern;
+/// of the if. This may make an inlining opportunity visible.
+struct DupClosureCall : public OpConversionPattern<closure::CallOp> {
+    DupClosureCall(MLIRContext* ctx) : OpConversionPattern(ctx)
+    {
+        setHasBoundedRewriteRecursion(true);
+    }
 
     static void cloneCallIntoIfBranch(
         Block &ifBranch,
@@ -48,10 +52,12 @@ struct DupClosureCall : public OpRewritePattern<closure::CallOp> {
         rewriter.replaceOpWithNewOp<scf::YieldOp>(yield, newCall.getResults());
     }
 
-    LogicalResult
-    matchAndRewrite(CallOp call, PatternRewriter &rewriter) const override
+    LogicalResult matchAndRewrite(
+        CallOp call,
+        OpAdaptor adaptor,
+        ConversionPatternRewriter &rewriter) const override
     {
-        if (auto ifOp = call.getCallee().getDefiningOp<scf::IfOp>()) {
+        if (auto ifOp = adaptor.getCallee().getDefiningOp<scf::IfOp>()) {
             Region &thenRegion = ifOp.getThenRegion();
             cloneCallIntoIfBranch(*thenRegion.begin(), call, rewriter);
             Region &elseRegion = ifOp.getElseRegion();
@@ -59,7 +65,8 @@ struct DupClosureCall : public OpRewritePattern<closure::CallOp> {
             rewriter.replaceOp(call, ifOp.getResults());
             return success();
         } else if (
-            auto selectOp = call.getCallee().getDefiningOp<arith::SelectOp>()) {
+            auto selectOp =
+                adaptor.getCallee().getDefiningOp<arith::SelectOp>()) {
             PatternRewriter::InsertionGuard guard(rewriter);
             rewriter.setInsertionPoint(selectOp);
             auto ifOp = rewriter.create<scf::IfOp>(
@@ -71,7 +78,7 @@ struct DupClosureCall : public OpRewritePattern<closure::CallOp> {
             IRMapping map;
 
             // create the true block
-            map.map(call.getCallee(), selectOp.getTrueValue());
+            map.map(adaptor.getCallee(), selectOp.getTrueValue());
             auto builder = ifOp.getThenBodyBuilder();
             auto newCall = builder.clone(*call, map);
             builder.create<scf::YieldOp>(
@@ -79,7 +86,7 @@ struct DupClosureCall : public OpRewritePattern<closure::CallOp> {
                 newCall->getResults());
 
             // create the false block
-            map.map(call.getCallee(), selectOp.getFalseValue());
+            map.map(adaptor.getCallee(), selectOp.getFalseValue());
             builder = ifOp.getElseBodyBuilder();
             newCall = builder.clone(*call, map);
             builder.create<scf::YieldOp>(
@@ -104,12 +111,22 @@ struct ClosureInlinePass
 
         ConversionTarget target(getContext());
         target.addDynamicallyLegalOp<closure::CallOp>([](CallOp call) {
+            // call the canonicalizer
+            if (auto box = call.getCallee().getDefiningOp<BoxOp>())
+                // Only legal if there are no capture args. This means
+                // the inliner can then inline the closure.
+                return box.getCaptureArgs().empty();
+
             return !call.getCallee().getDefiningOp<scf::IfOp>()
                    && !call.getCallee().getDefiningOp<arith::SelectOp>();
         });
+        // call the canonicalizer
+        target.addDynamicallyLegalOp<sigi::PopOp>([](sigi::PopOp pop) {
+            return !pop.getInStack().getDefiningOp<sigi::PushOp>();
+        });
         target.markUnknownOpDynamicallyLegal([](auto) { return true; });
 
-        if (failed(applyPartialConversion(
+        if (failed(applyFullConversion(
                 getOperation(),
                 target,
                 std::move(patterns))))

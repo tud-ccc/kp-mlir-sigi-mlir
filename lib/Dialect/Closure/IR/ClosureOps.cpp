@@ -7,9 +7,11 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Interfaces/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/Transforms/DialectConversion.h"
 
 #include "llvm/ADT/APFloat.h"
 
@@ -339,4 +341,60 @@ void ReturnOp::print(OpAsmPrinter &printer)
         printer << ' ';
         printer << getOperands().getTypes();
     }
+}
+
+namespace {
+
+// note: this could be a canonicalizer?
+struct DeleteCaptureArgs : public OpRewritePattern<closure::CallOp> {
+    DeleteCaptureArgs(MLIRContext* ctx) : OpRewritePattern(ctx)
+    {
+        setHasBoundedRewriteRecursion(true);
+    }
+
+    LogicalResult matchAndRewrite(
+        CallOp call,
+        PatternRewriter &rewriter) const override
+    {
+        // The principle here is to transform the closure into a non-capturing
+        // one so that the regular inlining pass can do its thing.
+        if (auto box = call.getCallee().getDefiningOp<BoxOp>()) {
+            if (box.getCaptureArgs().empty()) return failure();
+
+            auto baseType = box.getFunctionType();
+            auto newFunType = FunctionType::get(
+                getContext(),
+                box.getRegion().getArgumentTypes(),
+                baseType.getResults());
+            auto newBox = rewriter.create<BoxOp>(
+                box.getLoc(),
+                ValueRange{},
+                ArrayRef{rewriter.getNamedAttr(
+                    "function_type",
+                    TypeAttr::get(newFunType))});
+
+            IRMapping map;
+            box.getBody().cloneInto(&newBox.getBody(), map);
+
+            SmallVector<Value> newCallArgs(box.getCaptureArgs());
+            SmallVector<Value> tmp(call.getCalleeOperands());
+
+            call.setOperand(0, newBox.getResult());
+            auto operands = call.getCalleeOperandsMutable();
+            operands.clear();
+            operands.append(box.getCaptureArgs());
+            operands.append(tmp);
+
+            return success();
+        }
+        return failure();
+    }
+};
+}
+
+void CallOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns,
+    MLIRContext* context)
+{
+    patterns.add<DeleteCaptureArgs>(context);
 }
