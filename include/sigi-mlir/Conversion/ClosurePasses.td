@@ -13,4 +13,16 @@ include "PassUtil.td"
 def ConvertClosureToLLVM : ConvertToLlvm<"Closure", "closure">;
 
 
+def ClosureInline : Pass<"closure-inline", "func::FuncOp"> {
+  let summary = "Inline more complex closure call patterns";
+
+  let constructor = "mlir::closure::createClosureInlinePass()";
+
+  let dependentDialects = [
+    "::mlir::func::FuncDialect",
+    "::mlir::scf::SCFDialect",
+    "::mlir::arith::ArithDialect",
+  ];
+}
+
 #endif // CLOSURE_CONVERSION_PASSES

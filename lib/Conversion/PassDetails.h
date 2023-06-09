@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "mlir/Pass/Pass.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Pass/Pass.h"
 
 namespace mlir {
 
@@ -13,10 +13,9 @@ namespace mlir {
 template<typename ConcreteDialect>
 void registerDialect(DialectRegistry &registry);
 
-
 namespace LLVM {
 class LLVMDialect;
-} // namespace func
+} // namespace LLVM
 
 namespace func {
 class FuncDialect;
@@ -29,21 +28,28 @@ class LinalgDialect;
 
 namespace closure {
 class ClosureDialect;
+class CallOp;
 } // namespace closure
 
+namespace arith {
+class ArithDialect;
+} // namespace arith
+namespace scf {
+class SCFDialect;
+} // namespace scf
 
 namespace sigi {
 class SigiDialect;
-} // namespace closure
+} // namespace sigi
 
 //===- Generated passes ---------------------------------------------------===//
 
 #define GEN_PASS_DEF_CONVERTCLOSURETOLLVM
+#define GEN_PASS_DEF_CLOSUREINLINE
 #include "sigi-mlir/Conversion/ClosurePasses.h.inc"
 #define GEN_PASS_DEF_CONVERTSIGITOLLVM
 #define GEN_PASS_DEF_SIGIINSERTDROPCHECKS
 #include "sigi-mlir/Conversion/SigiPasses.h.inc"
-
 
 //===----------------------------------------------------------------------===//
 

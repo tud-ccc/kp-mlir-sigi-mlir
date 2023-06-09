@@ -1,3 +1,4 @@
+add_subdirectory(ClosureInline)
 add_subdirectory(ClosureToLLVM)
 add_subdirectory(SigiToLLVM)
 add_subdirectory(SigiInsertDropChecks)

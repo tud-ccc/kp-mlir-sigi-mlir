@@ -19,6 +19,7 @@ cmake:
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
         -DCMAKE_C_COMPILER=clang \
         -DCMAKE_CXX_COMPILER=clang++ \
+        -DCMAKE_LINKER="/bin/ld.lld"
 
 # execute a specific ninja target
 doNinja *ARGS:
@@ -35,6 +36,11 @@ test: (doNinja "check-sigi-mlir")
 
 sigi-opt *ARGS:
     {{build_dir}}/bin/sigi-opt {{ARGS}}
+
+
+sigi-opt-expr EXPR *ARGS:
+    just -f ../sigi-frontend/justfile exprToMlir '{{EXPR}}' | \
+        {{build_dir}}/bin/sigi-opt {{ARGS}}
 
 sigi-opt-help: (sigi-opt "--help")
 
