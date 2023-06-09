@@ -58,7 +58,7 @@ def CallOp : Closure_Op<"call",
       return MutableOperandRange(*this, 1, getCalleeOperands().size());
     }
 
-    operand_iterator arg_operand_begin() { return operand_begin(); }
+    operand_iterator arg_operand_begin() { return ++operand_begin(); }
     operand_iterator arg_operand_end() { return operand_end(); }
 
     /// Return the callee of this operation.
@@ -78,7 +78,11 @@ def CallOp : Closure_Op<"call",
 
 def BoxOp : Closure_Op<"box", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface, 
+<<<<<<< HEAD
   IsolatedFromAbove
+=======
+  InferTypeOpInterface, IsolatedFromAbove, Pure
+>>>>>>> c837162 (Fix closure interfaces for the inliner)
 ]> {
   let summary = "Create a boxed closure with the given functional signature.";
   let description = [{
