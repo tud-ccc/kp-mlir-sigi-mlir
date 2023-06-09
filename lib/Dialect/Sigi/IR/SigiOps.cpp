@@ -88,7 +88,8 @@ ParseResult PopOp::parse(OpAsmParser &parser, OperationState &result)
 
 void PushOp::print(OpAsmPrinter &printer)
 {
-    printer << " " << getInStack() << ", " << getValue() << " : " << getValueType();
+    printer << " " << getInStack() << ", " << getValue() << " : "
+            << getValueType();
 }
 
 void PopOp::print(OpAsmPrinter &printer)

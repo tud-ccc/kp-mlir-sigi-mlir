@@ -11,5 +11,15 @@ include "PassUtil.td"
 
 def ConvertSigiToLLVM : ConvertToLlvm<"Sigi", "sigi">;
 
+def SigiInsertDropChecks : Pass<"sigi-insert-drop-checks", "func::FuncOp"> {
+  let summary = "Insert drop checks for closures.";
+
+  let constructor = "mlir::sigi::createInsertDropChecksPass()";
+
+  let dependentDialects = [
+    "::mlir::func::FuncDialect"
+  ];
+}
+
 
 #endif // SIGI_CONVERSION_PASSES

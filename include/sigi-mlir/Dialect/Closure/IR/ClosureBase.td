@@ -21,8 +21,6 @@ def Closure_Dialect : Dialect {
     }];
 
     let useDefaultTypePrinterParser = 1;
-    let useFoldAPI = kEmitFoldAdaptorFolder;
-
 
     code extraClassDeclaration = [{
     private:
@@ -30,6 +28,8 @@ def Closure_Dialect : Dialect {
         void registerTypes();
     }];
 }
+
+
 
 // Template for attributes.
 // class Closure_Attr<string name, list<Trait> traits = []>

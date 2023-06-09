@@ -59,10 +59,11 @@ def PopOp : Sigi_Op<"pop", [InferTypeOpInterface, Pure]> {
 
     static LogicalResult inferReturnTypes(
         MLIRContext* context,
-        std::optional<Location> location,
-        ValueRange operands,
+        std::optional<Location>,
+        ValueRange,
         DictionaryAttr attributes,
-        RegionRange regions,
+        OpaqueProperties,
+        RegionRange,
         SmallVectorImpl<Type> &inferredReturnTypes) {
 
         Type ty = attributes.get("value_type").cast<TypeAttr>().getValue();

@@ -13,13 +13,14 @@ using namespace mlir::sigi;
 
 //===- Generated implementation -------------------------------------------===//
 
+#include "sigi-mlir/Conversion/SigiToLLVM/SigiToLLVM.h"
 #include "sigi-mlir/Dialect/Sigi/IR/SigiBase.cpp.inc"
-
 //===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
 // SigiDialect
 //===----------------------------------------------------------------------===//
+
 
 void SigiDialect::initialize()
 {

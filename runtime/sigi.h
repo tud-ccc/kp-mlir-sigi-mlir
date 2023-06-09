@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include "closure.h"
 
 typedef struct sigi_stack_impl* sigi_stack_t;
 
@@ -11,9 +12,9 @@ void sigi_free_stack(sigi_stack_t* stack);
 
 void sigi_push_i32(sigi_stack_t* stack, int32_t value);
 void sigi_push_bool(sigi_stack_t* stack, bool value);
-void sigi_push_closure(sigi_stack_t* stack, void* value);
+void sigi_push_closure(sigi_stack_t* stack, closure_t* value);
 
-void* sigi_pop_closure(sigi_stack_t* stack);
+closure_t* sigi_pop_closure(sigi_stack_t* stack);
 int32_t sigi_pop_i32(sigi_stack_t* stack);
 bool sigi_pop_bool(sigi_stack_t* stack);
 

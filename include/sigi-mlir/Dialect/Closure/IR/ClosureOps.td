@@ -53,12 +53,15 @@ def CallOp : Closure_Op<"call",
       return {arg_operand_begin(), arg_operand_end()};
     }
 
-    operand_iterator arg_operand_begin() { return operand_begin(); }
+    operand_iterator arg_operand_begin() { return ++operand_begin(); }
     operand_iterator arg_operand_end() { return operand_end(); }
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() {
-      return (*this)->getAttrOfType<SymbolRefAttr>("callee");
+      return this->getCallee();
+    }
+    void setCalleeFromCallable(CallInterfaceCallable callable) {
+      // todo
     }
   }];
 
@@ -70,7 +73,7 @@ def CallOp : Closure_Op<"call",
 
 def BoxOp : Closure_Op<"box", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface, 
-  InferTypeOpInterface, IsolatedFromAbove
+  InferTypeOpInterface, IsolatedFromAbove, Pure
 ]> {
   let summary = "Create a boxed closure with the given functional signature.";
   let description = [{
@@ -114,6 +117,8 @@ def BoxOp : Closure_Op<"box", [
     /// Returns the results types that the callable region produces when
     /// executed.
     ArrayRef<Type> getCallableResults() { return getFunctionType().getResults(); }
+    ArrayAttr getCallableArgAttrs() { return {}; }
+    ArrayAttr getCallableResAttrs() { return {}; }
 
     //===
     // InferTypeOpInterface
@@ -124,6 +129,7 @@ def BoxOp : Closure_Op<"box", [
         std::optional<Location> location,
         ValueRange operands,
         DictionaryAttr attributes,
+        OpaqueProperties,
         RegionRange regions,
         SmallVectorImpl<Type> &inferredReturnTypes) {
 
@@ -167,5 +173,30 @@ def ReturnOp : Closure_Op<"return", [Pure, HasParent<"BoxOp">,
   let hasCustomAssemblyFormat = 1;
 
 }
+
+def DropOp : Closure_Op<"check_drop", []> {
+  let summary = "If the closure reference count is zero, drop the closure recursively. This does not mutate the reference count.";
+  let description = [{
+  }];
+
+  let arguments = (ins Closure_BoxType:$callee);
+  let results = (outs);
+
+  let extraClassDeclaration = [{
+    FunctionType getCalleeType() {
+      return getCallee().getType().cast<BoxedClosureType>().getFunctionType();
+    }
+
+    BoxedClosureType getClosureType() {
+      return BoxedClosureType::get(getContext(), getCalleeType());
+    }
+
+  }];
+
+  let assemblyFormat = [{
+    $callee  attr-dict `:` type($callee)
+  }];
+}
+
 
 #endif

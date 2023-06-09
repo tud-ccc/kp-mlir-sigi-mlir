@@ -1,5 +1,5 @@
 
-build_type := env_var_or_default("LLVM_BUILD_TYPE", "RelWithDebInfo")
+build_type := env_var_or_default("SIGI_BUILD_TYPE", "Debug")
 llvm_prefix := env_var("LLVM_INSTALL_DIR") + "/build-Debug"
 build_dir := "build-" + build_type
 
@@ -57,7 +57,7 @@ sigiToLlvmIr FILE:
     #!/bin/bash
     FILEBASE={{FILE}}
     FILEBASE=${FILEBASE%.*}
-    {{build_dir}}/bin/sigi-opt --convert-arith-to-llvm --convert-scf-to-cf --convert-sigi-to-llvm -cse --llvm-legalize-for-export --mlir-print-ir-after-failure --mlir-print-stacktrace-on-diagnostic {{FILE}} > $FILEBASE.llvm.mlir
+    {{build_dir}}/bin/sigi-opt --sigi-insert-drop-checks --convert-arith-to-llvm --convert-scf-to-cf --convert-sigi-to-llvm -cse --llvm-legalize-for-export --mlir-print-ir-after-failure --mlir-print-stacktrace-on-diagnostic {{FILE}} > $FILEBASE.llvm.mlir
     just llvmDialectIntoExecutable $FILEBASE.llvm.mlir
 
 # Lowers closure all the way to LLVM IR. Temporary files are left there.

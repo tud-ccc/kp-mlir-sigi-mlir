@@ -40,8 +40,10 @@ static LLVM::LLVMFunctionType
 convertFunType(LLVMTypeConverter &converter, FunctionType funTy)
 {
     TypeConverter::SignatureConversion conversion(funTy.getInputs().size());
-    Type res = converter.convertFunctionSignature(funTy, false, conversion);
-    return res.cast<LLVM::LLVMFunctionType>();
+    Type res =
+        converter.convertFunctionSignature(funTy, false, true, conversion);
+    if (res) return res.cast<LLVM::LLVMFunctionType>();
+    return nullptr;
 }
 
 static LLVM::LLVMFunctionType
@@ -57,6 +59,57 @@ insertClosureParameter(LLVM::LLVMFunctionType funTy)
         funTy.getReturnType(),
         argTypes,
         funTy.isVarArg());
+}
+
+/// Return the function that checks decrements the refcount and checks if it is
+/// zero.
+static LLVM::LLVMFuncOp getDecrOrDropFunc(ModuleOp moduleOp)
+{
+    auto ctx = moduleOp->getContext();
+    return LLVM::lookupOrCreateFn(
+        moduleOp,
+        "closure_decr_then_drop",
+        {untypedPtrType(ctx)},
+        LLVM::LLVMVoidType::get(ctx));
+}
+/// Return the function that drops a closure if its refcount is zero. Does not
+/// decrement the refcount.
+static LLVM::LLVMFuncOp getCheckDropFunc(ModuleOp moduleOp)
+{
+    auto ctx = moduleOp->getContext();
+    return LLVM::lookupOrCreateFn(
+        moduleOp,
+        "closure_check_drop",
+        {untypedPtrType(ctx)},
+        LLVM::LLVMVoidType::get(ctx));
+}
+
+static LLVM::LLVMFuncOp getIncrRefCountFunc(ModuleOp moduleOp)
+{
+    return LLVM::lookupOrCreateFn(
+        moduleOp,
+        "closure_incr",
+        {untypedPtrType(moduleOp.getContext())},
+        LLVM::LLVMVoidType::get(moduleOp.getContext()));
+}
+
+static LLVM::LLVMFuncOp
+getNoopDropFunc(ModuleOp moduleOp, ImplicitLocOpBuilder &rewriter)
+{
+    auto func = LLVM::lookupOrCreateFn(
+        moduleOp,
+        "closure_drop_nothing",
+        {untypedPtrType(rewriter.getContext())},
+        LLVM::LLVMVoidType::get(rewriter.getContext()));
+    func.setLinkage(LLVM::Linkage::Private);
+
+    if (func.empty()) {
+        ConversionPatternRewriter::InsertionGuard guard(rewriter);
+        auto block = func.addEntryBlock();
+        rewriter.setInsertionPointToStart(block);
+        rewriter.create<LLVM::ReturnOp>(ValueRange{});
+    }
+    return func;
 }
 
 struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
@@ -100,6 +153,23 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
         return size.getResult();
     }
 
+    static Value capture(
+        Value captureArg,
+        Type originalArgTy,
+        ModuleOp moduleOp,
+        ImplicitLocOpBuilder rewriter)
+    {
+        if (originalArgTy.isa<closure::BoxedClosureType>()) {
+            auto cast = rewriter.create<LLVM::BitcastOp>(
+                untypedPtrType(rewriter.getContext()),
+                captureArg);
+            rewriter.create<LLVM::CallOp>(
+                getIncrRefCountFunc(moduleOp),
+                ValueRange{cast.getResult()});
+        }
+        return captureArg;
+    }
+
     LogicalResult matchAndRewrite(
         closure::BoxOp op,
         OpAdaptor adaptor,
@@ -111,6 +181,11 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
 
         auto moduleOp = op->getParentOfType<ModuleOp>();
         auto funTy = convertFunType(*getTypeConverter(), op.getFunctionType());
+        if (!funTy) {
+            return rewriter0.notifyMatchFailure(
+                op.getLoc(),
+                "Closure signature cannot be converted to LLVM types.");
+        }
         auto wrapperTy = insertClosureParameter(funTy);
         auto workerTy = convertFunType(
             *getTypeConverter(),
@@ -118,6 +193,15 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
                 getContext(),
                 op.getRegion().front().getArgumentTypes(),
                 wrapperTy.getReturnTypes()));
+        // Drop function: void drop(void*);
+        // This is the virtual drop function that recursively drops fields.
+        auto dropFuncTy = LLVM::LLVMFunctionType::get(
+            getContext(),
+            getVoidType(),
+            {untypedPtrType(getContext())},
+            false);
+        auto decOrDropFunc = getDecrOrDropFunc(moduleOp);
+        auto refCountType = rewriter.getI32Type();
 
         LLVM::LLVMFuncOp workerFun;
         {
@@ -145,17 +229,21 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
                 });
         }
 
+        // these are the converted types!
         SmallVector<Type> captureArgTypes(adaptor.getCaptureArgs().getTypes());
 
         // type of the struct that holds the captured parameters
         auto captureParamStructTy =
             LLVM::LLVMStructType::getLiteral(getContext(), captureArgTypes);
 
-        // type of the struct that holds the entire closure (fptr + capture
-        // args)
+        // type of the struct that holds the entire closure (fptr + refcount +
+        // drop fun + capture args)
         auto fullClosureTy = LLVM::LLVMStructType::getLiteral(
             getContext(),
-            {ptrType(wrapperTy), captureParamStructTy});
+            {ptrType(wrapperTy),  // invoke function
+             refCountType,        // reference count
+             ptrType(dropFuncTy), // drop function
+             captureParamStructTy});
 
         // create a wrapper function, that has the type of the erased
         // function + 1 initial parameter for the closure itself
@@ -183,7 +271,7 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
             auto argsPtr = rewriter.create<LLVM::GEPOp>(
                 ptrType(captureParamStructTy),
                 typedPtr,
-                ArrayRef<LLVM::GEPArg>{0, 1});
+                ArrayRef<LLVM::GEPArg>{0, 3});
 
             // clang-format off
             // %loadedArgs = llvm.load %argsPtr: !llvm.ptr<captureParamStructTy>
@@ -212,30 +300,115 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
             // and return
             rewriter.create<LLVM::ReturnOp>(result.getResults());
         }
+        SmallVector<Type> originalCaptureArgTypes(
+            op.getCaptureArgs().getTypes());
+
+        // Create the virtual drop function.
+        LLVM::LLVMFuncOp dropFun;
+        {
+
+            // If there are any closures to drop, generate the func.
+            if (std::any_of(
+                    originalCaptureArgTypes.begin(),
+                    originalCaptureArgTypes.end(),
+                    [](auto ty) {
+                        return ty.template isa<closure::BoxedClosureType>();
+                    })) {
+                ConversionPatternRewriter::InsertionGuard guard(rewriter);
+                rewriter.setInsertionPointAfter(workerFun.getOperation());
+                dropFun = rewriter.create<LLVM::LLVMFuncOp>(
+                    getUniqueFunctionName(moduleOp, "closure_drop_"),
+                    dropFuncTy,
+                    LLVM::Linkage::Private);
+                Block* entry = dropFun.addEntryBlock();
+                rewriter.setInsertionPointToStart(entry);
+
+                // clang-format off
+                // %typedPtr = llvm.bitcast %closure: !llvm.ptr to !llvm.ptr<fullClosureTy>
+                // clang-format on
+                auto typedPtr = rewriter.create<LLVM::BitcastOp>(
+                    ptrType(fullClosureTy),
+                    entry->getArgument(0));
+
+                // clang-format off
+                // %argsPtr = llvm.getelementptr %typedPtr[0, 1]: (!llvm.ptr<fullClosureTy>) -> !llvm.ptr<captureParamStructTy>
+                // clang-format on
+                auto argsPtr = rewriter.create<LLVM::GEPOp>(
+                    ptrType(captureParamStructTy),
+                    typedPtr,
+                    ArrayRef<LLVM::GEPArg>{0, 3});
+
+                // clang-format off
+                // %loadedArgs = llvm.load %argsPtr: !llvm.ptr<captureParamStructTy>
+                // clang-format on
+                auto loadedArgs = rewriter.create<LLVM::LoadOp>(loc, argsPtr);
+
+                int64_t i = 0, numCaptureArgs = adaptor.getCaptureArgs().size();
+                for (; i < numCaptureArgs; i++) {
+                    auto argTy = originalCaptureArgTypes[i];
+                    if (argTy.isa<closure::BoxedClosureType>()) {
+                        auto field = rewriter.create<LLVM::ExtractValueOp>(
+                            loadedArgs,
+                            ArrayRef<int64_t>{i});
+
+                        auto castField = rewriter.create<LLVM::BitcastOp>(
+                            decOrDropFunc.getArgumentTypes()[0],
+                            field);
+                        rewriter.create<LLVM::CallOp>(
+                            decOrDropFunc,
+                            ValueRange{castField.getResult()});
+                    }
+                }
+                rewriter.create<LLVM::ReturnOp>(ValueRange{});
+            } else {
+                // there are no closures to drop. Just use the noop
+                // implementation.
+                dropFun = getNoopDropFunc(moduleOp, rewriter);
+            }
+        }
 
         // now for replacing the closure.box
 
         // first we allocate memory for it
         Value sizeOfClosure = getSizeOfType(fullClosureTy, rewriter);
-        auto mallocFun =
-            LLVM::lookupOrCreateMallocFn(moduleOp, sizeOfClosure.getType());
+        auto mallocFun = LLVM::lookupOrCreateMallocFn(
+            moduleOp,
+            sizeOfClosure.getType(),
+            true);
         auto allocForClosure =
             rewriter.create<LLVM::CallOp>(mallocFun, sizeOfClosure);
 
         // then we create an instance and initialize it
         auto closureInstance = rewriter.create<LLVM::UndefOp>(fullClosureTy);
         auto wrapperAddress = rewriter.create<LLVM::AddressOfOp>(wrapperFun);
+        auto dropAddress = rewriter.create<LLVM::AddressOfOp>(dropFun);
+        // initially the closure is allocated with a refcount of 0
+        auto initialRefCount =
+            rewriter.create<LLVM::ConstantOp>(refCountType, 0);
         Value closureBeingBuilt = rewriter.create<LLVM::InsertValueOp>(
             closureInstance,
             wrapperAddress,
             ArrayRef<int64_t>{0});
+        closureBeingBuilt = rewriter.create<LLVM::InsertValueOp>(
+            closureBeingBuilt,
+            initialRefCount,
+            ArrayRef<int64_t>{1});
+        closureBeingBuilt = rewriter.create<LLVM::InsertValueOp>(
+            closureBeingBuilt,
+            dropAddress,
+            ArrayRef<int64_t>{2});
         // initialize all captured fields
         int64_t i = 0;
         for (auto captArg : adaptor.getCaptureArgs()) {
+            auto captured = capture(
+                captArg,
+                originalCaptureArgTypes[i],
+                moduleOp,
+                rewriter);
             closureBeingBuilt = rewriter.create<LLVM::InsertValueOp>(
                 closureBeingBuilt,
-                captArg,
-                ArrayRef<int64_t>{1, i});
+                captured,
+                ArrayRef<int64_t>{3, i});
             i++;
         }
 
@@ -276,6 +449,33 @@ struct ConvertClosureReturnToLLVM
             op->getAttrs(),
             *getTypeConverter(),
             rewriter);
+    }
+};
+struct ConvertClosureDropToLLVM
+        : public ConvertOpToLLVMPattern<closure::DropOp> {
+    using ConvertOpToLLVMPattern<closure::DropOp>::ConvertOpToLLVMPattern;
+
+    LogicalResult matchAndRewrite(
+        closure::DropOp op,
+        OpAdaptor adaptor,
+        ConversionPatternRewriter &rewriter0) const override
+    {
+        auto moduleOp = op->getParentOfType<ModuleOp>();
+
+        LLVM::LLVMFuncOp popFunc;
+        auto dropFunc = getCheckDropFunc(moduleOp);
+
+        auto cast = rewriter0.create<LLVM::BitcastOp>(
+            op.getLoc(),
+            dropFunc.getArgumentTypes()[0],
+            adaptor.getCallee());
+
+        rewriter0.replaceOpWithNewOp<LLVM::CallOp>(
+            op,
+            dropFunc,
+            cast.getResult());
+
+        return success();
     }
 };
 
@@ -364,6 +564,7 @@ void mlir::closure::populateClosureToLLVMFinalTypeConversions(
             auto llvmTy = typeConverter.convertFunctionSignature(
                 funcTy,
                 false,
+                true,
                 conversion);
 
             if (llvmTy)
@@ -382,6 +583,7 @@ void mlir::closure::populateClosureToLLVMConversionPatterns(
     patterns.add<
         ConvertClosureCallToLLVM,
         ConvertClosureBoxToLLVM,
+        ConvertClosureDropToLLVM,
         ConvertClosureReturnToLLVM>(typeConverter);
 }
 
