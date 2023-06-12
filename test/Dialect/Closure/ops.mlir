@@ -12,13 +12,6 @@ func.func @return_closure(%arg0: i32) -> !closure.box<(i32) -> i32> {
     return %6: !closure.box<(i32) -> i32>
 }
 
-// CHECK-LABEL: box_func
-func.func @do_st(%arg0: i32)-> i32 { return %arg0: i32}
-func.func @box_func(%arg0: i32) -> !closure.box<(i32) -> i32> {
-    %6 = closure.box_func @do_st : !closure.box<(i32) -> i32>
-    return %6: !closure.box<(i32) -> i32>
-}
-
 // CHECK-LABEL: call_closure
 func.func @call_closure(%arg0: i32) -> i32 {
     %6 = closure.box [%1 = %arg0: i32] (%2 : i32) -> i32 {

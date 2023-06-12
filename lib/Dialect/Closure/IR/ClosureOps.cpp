@@ -328,39 +328,6 @@ ParseResult ReturnOp::parse(OpAsmParser &parser, OperationState &result)
     return ::mlir::func::ReturnOp::parse(parser, result);
 }
 
-ParseResult BoxFuncOp::parse(OpAsmParser &parser, OperationState &result)
-{
-    StringAttr callee;
-    if (parser.parseSymbolName(callee)) return failure();
-    result.addAttribute(
-        BoxFuncOp::getCalleeAttrName(result.name),
-        FlatSymbolRefAttr::get(callee));
-
-    Type ty;
-    if (parser.parseColonType(ty)) return failure();
-
-    if (auto boxT = dyn_cast<BoxedClosureType>(ty)) {
-        auto funcT = boxT.getFunctionType();
-        result.addAttribute(
-            BoxFuncOp::getFunctionTypeAttrName(result.name),
-            TypeAttr::get(funcT));
-        result.addTypes(boxT);
-    } else {
-        return parser.emitError(
-            parser.getCurrentLocation(),
-            "Expected a !closure.box<...> type");
-    }
-    return success();
-}
-
-void BoxFuncOp::print(OpAsmPrinter &printer)
-{
-    printer << ' ';
-    printer.printSymbolName(getCallee());
-    printer << " : ";
-    printer.printType(getResult().getType());
-}
-
 void ReturnOp::print(OpAsmPrinter &printer)
 {
     ::llvm::SmallVector<::llvm::StringRef, 2> elidedAttrs;
@@ -372,34 +339,4 @@ void ReturnOp::print(OpAsmPrinter &printer)
         printer << ' ';
         printer << getOperands().getTypes();
     }
-}
-
-LogicalResult BoxFuncOp::verifySymbolUses(SymbolTableCollection &symbolTable)
-{
-    // Check that the callee attribute was specified.
-    auto fnAttr = (*this)->getAttrOfType<FlatSymbolRefAttr>("callee");
-    if (!fnAttr)
-        return emitOpError("requires a 'callee' symbol reference attribute");
-    func::FuncOp fn =
-        symbolTable.lookupNearestSymbolFrom<func::FuncOp>(*this, fnAttr);
-    if (!fn)
-        return emitOpError() << "'" << fnAttr.getValue()
-                             << "' does not reference a valid function";
-
-    // Verify that the operand and result types match the callee.
-    auto fnType = fn.getFunctionType();
-    auto declaredType = this->getResult().getType().getFunctionType();
-
-    if (fnType != declaredType) {
-        std::string str;
-        llvm::raw_string_ostream os(str);
-        declaredType.print(os);
-        auto diag = emitOpError("Incorrect callee signature, expected ")
-                    << os.str();
-        os.str().clear();
-        fnType.print(os);
-        return diag << " but was " << os.str();
-    }
-
-    return success();
 }

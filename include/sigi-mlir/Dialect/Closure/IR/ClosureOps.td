@@ -146,57 +146,6 @@ def BoxOp : Closure_Op<"box", [
 }
 
 
-
-def BoxFuncOp : Closure_Op<"box_func", [
- InferTypeOpInterface, IsolatedFromAbove, Pure,
- DeclareOpInterfaceMethods<SymbolUserOpInterface>
-]> {
-  let summary = [{
-  Create a closure from a reference to a func.func. The closure cannot capture arguments.
-  This is a bridge between the closure and func dialects: it allows converting function pointers
-  to type-erased closures.
-  Boxed funcs are also easy to inline.
-  }];
-  let description = [{
-    Operations within the function can capture values, provided the captures are
-    declared explicitly (in square brackets).
-
-    %1 = closure.box_func @fun : !closure.box<() -> i32> 
-
-  }];
-
-  let arguments = (ins TypeAttrOf<FunctionType>:$function_type, FlatSymbolRefAttr:$callee);
-  let results = (outs Closure_BoxType:$result);
-
-  let extraClassDeclaration = [{
-
-    BoxedClosureType getClosureType() {
-      return BoxedClosureType::get(getContext(), getFunctionType());
-    }
-
-    //===
-    // InferTypeOpInterface
-    //===
-
-    static LogicalResult inferReturnTypes(
-        MLIRContext* context,
-        std::optional<Location> location,
-        ValueRange operands,
-        DictionaryAttr attributes,
-        OpaqueProperties,
-        RegionRange regions,
-        SmallVectorImpl<Type> &inferredReturnTypes) {
-
-        Type ty = attributes.get("function_type").cast<TypeAttr>().getValue();
-        FunctionType funTy = ty.cast<FunctionType>();
-        inferredReturnTypes.assign({BoxedClosureType::get(context, funTy)});
-        return success();
-    }
-
-  }];
-  let hasCustomAssemblyFormat = 1;
-}
-
 //===----------------------------------------------------------------------===//
 // ReturnOp
 //===----------------------------------------------------------------------===//

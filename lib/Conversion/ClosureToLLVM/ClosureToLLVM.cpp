@@ -478,46 +478,6 @@ struct ConvertClosureDropToLLVM
     }
 };
 
-struct ConvertClosureBoxFuncToRegularBox
-        : public OpConversionPattern<closure::BoxFuncOp> {
-    using OpConversionPattern<closure::BoxFuncOp>::OpConversionPattern;
-
-    LogicalResult matchAndRewrite(
-        closure::BoxFuncOp op,
-        OpAdaptor adaptor,
-        ConversionPatternRewriter &rewriter0) const override
-    {
-        auto moduleOp = op->getParentOfType<ModuleOp>();
-        auto newBox = rewriter0.create<BoxOp>(
-            op.getLoc(),
-            ValueRange{},
-            ArrayRef{rewriter0.getNamedAttr(
-                BoxOp::getFunctionTypeAttrName(
-                    OperationName(BoxOp::getOperationName(), getContext())),
-                op.getFunctionTypeAttr())});
-
-        auto &body = newBox.getRegion();
-
-        auto* entry = new Block;
-        body.push_back(entry);
-
-        auto type = op.getFunctionType();
-        for (unsigned i = 0, e = type.getNumInputs(); i < e; ++i)
-            entry->addArgument(type.getInput(i), op.getLoc());
-
-        rewriter0.setInsertionPointToStart(entry);
-        auto call = rewriter0.create<func::CallOp>(
-            op.getLoc(),
-            op.getCalleeAttr(),
-            TypeRange(type.getResults()),
-            ValueRange(entry->getArguments()));
-        rewriter0.create<closure::ReturnOp>(op.getLoc(), call.getResults());
-
-        rewriter0.replaceOp(op, newBox.getResult());
-
-        return success();
-    }
-};
 
 struct ConvertClosureCallToLLVM
         : public ConvertOpToLLVMPattern<closure::CallOp> {
@@ -625,7 +585,6 @@ void mlir::closure::populateClosureToLLVMConversionPatterns(
         ConvertClosureBoxToLLVM,
         ConvertClosureDropToLLVM,
         ConvertClosureReturnToLLVM>(typeConverter);
-    patterns.add<ConvertClosureBoxFuncToRegularBox>(&typeConverter.getContext());
 }
 
 /***
@@ -649,13 +608,11 @@ void ConvertClosureToLLVMPass::runOnOperation()
 
     // convert closure dialect operations.
     populateClosureToLLVMConversionPatterns(converter, patterns);
-    // convert func dialect
-    populateFuncToLLVMConversionPatterns(converter, patterns);
 
     // Remove unrealized casts wherever possible.
     populateReconcileUnrealizedCastsPatterns(patterns);
 
-    target.addIllegalDialect<closure::ClosureDialect, func::FuncDialect>();
+    target.addIllegalDialect<closure::ClosureDialect>();
     target.markUnknownOpDynamicallyLegal([](Operation*) { return true; });
 
     if (failed(applyPartialConversion(
