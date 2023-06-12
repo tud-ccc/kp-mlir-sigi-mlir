@@ -27,6 +27,49 @@ using namespace mlir::closure;
 
 namespace {
 
+/// Turn a closure with a known call site into closure with no args.
+struct DeleteCaptureArgs : public OpRewritePattern<closure::CallOp> {
+    DeleteCaptureArgs(MLIRContext* ctx) : OpRewritePattern(ctx)
+    {
+        setHasBoundedRewriteRecursion(true);
+    }
+
+    LogicalResult
+    matchAndRewrite(CallOp call, PatternRewriter &rewriter) const override
+    {
+        // The principle here is to transform the closure into a non-capturing
+        // one so that the regular inlining pass can do its thing.
+        if (auto box = call.getCallee().getDefiningOp<BoxOp>()) {
+            if (box.getCaptureArgs().empty()) return failure();
+
+            auto baseType = box.getFunctionType();
+            auto newFunType = FunctionType::get(
+                getContext(),
+                box.getRegion().getArgumentTypes(),
+                baseType.getResults());
+            auto newBox = rewriter.create<BoxOp>(
+                box.getLoc(),
+                ValueRange{},
+                ArrayRef{rewriter.getNamedAttr(
+                    "function_type",
+                    TypeAttr::get(newFunType))});
+
+            IRMapping map;
+            box.getBody().cloneInto(&newBox.getBody(), map);
+
+            call.setOperand(0, newBox.getResult());
+
+            SmallVector<Value> newCallArgs(box.getCaptureArgs());
+            SmallVector<Value> tmp(call.getCalleeOperands());
+            newCallArgs.append(std::move(tmp));
+            call.getCalleeOperandsMutable().assign(newCallArgs);
+
+            return success();
+        }
+        return failure();
+    }
+};
+
 /// @brief Duplicate a closure.call whose callee is an scf.if into each branch
 /// of the if. This may make an inlining opportunity visible.
 struct DupClosureCall : public OpConversionPattern<closure::CallOp> {
@@ -111,12 +154,6 @@ struct ClosureInlinePass
 
         ConversionTarget target(getContext());
         target.addDynamicallyLegalOp<closure::CallOp>([](CallOp call) {
-            // call the canonicalizer
-            if (auto box = call.getCallee().getDefiningOp<BoxOp>())
-                // Only legal if there are no capture args. This means
-                // the inliner can then inline the closure.
-                return box.getCaptureArgs().empty();
-
             return !call.getCallee().getDefiningOp<scf::IfOp>()
                    && !call.getCallee().getDefiningOp<arith::SelectOp>();
         });
@@ -131,6 +168,44 @@ struct ClosureInlinePass
                 target,
                 std::move(patterns))))
             signalPassFailure();
+
+        ConversionPatternRewriter rewriter(&getContext());
+
+        getOperation().walk([&](BoxOp box) {
+            DeleteCaptureArgs delArgs(&getContext());
+            if (box.getCaptureArgs().empty()) return;
+            for (auto& use : box.getResult().getUses())
+                if (!dyn_cast<CallOp>(use.getOwner())) return;
+
+            auto baseType = box.getFunctionType();
+            auto newFunType = FunctionType::get(
+                &getContext(),
+                box.getRegion().getArgumentTypes(),
+                baseType.getResults());
+            rewriter.setInsertionPointAfter(box);
+            auto newBox = rewriter.create<BoxOp>(
+                box.getLoc(),
+                ValueRange{},
+                ArrayRef{rewriter.getNamedAttr(
+                    "function_type",
+                    TypeAttr::get(newFunType))});
+
+            IRMapping map;
+            box.getBody().cloneInto(&newBox.getBody(), map);
+
+            SmallVector<Value> newCallArgs(box.getCaptureArgs());
+            for (auto& use : box.getResult().getUses()) {
+                auto call = cast<CallOp>(use.getOwner());
+                newCallArgs.truncate(box.getCaptureArgs().size());
+
+                SmallVector<Value> tmp(call.getCalleeOperands());
+                newCallArgs.append(std::move(tmp));
+
+                call.setOperand(0, newBox.getResult());
+                call.getCalleeOperandsMutable().assign(newCallArgs);
+            }
+            rewriter.eraseOp(box);
+        });
     }
 };
 } // namespace
