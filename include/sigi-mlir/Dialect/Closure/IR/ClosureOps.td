@@ -151,12 +151,12 @@ def BoxFuncOp : Closure_Op<"box_func", [
  InferTypeOpInterface, IsolatedFromAbove, Pure,
  DeclareOpInterfaceMethods<SymbolUserOpInterface>
 ]> {
-  let summary = "
+  let summary = [{
   Create a closure from a reference to a func.func. The closure cannot capture arguments.
-  This is a bridge between the closure and func dialects: it allows lifting function pointers
+  This is a bridge between the closure and func dialects: it allows converting function pointers
   to type-erased closures.
   Boxed funcs are also easy to inline.
-  ";
+  }];
   let description = [{
     Operations within the function can capture values, provided the captures are
     declared explicitly (in square brackets).
