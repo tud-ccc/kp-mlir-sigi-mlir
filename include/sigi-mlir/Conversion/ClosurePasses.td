@@ -13,8 +13,29 @@ include "PassUtil.td"
 def ConvertClosureToLLVM : ConvertToLlvm<"Closure", "closure">;
 
 
+def ClosureToFunc : Pass<"closure-to-func", "func::FuncOp"> {
+  let summary = "Remove closure boxing where possible.";
+
+  let constructor = "mlir::closure::createClosureToFuncPass()";
+
+  let dependentDialects = [
+    "::mlir::func::FuncDialect",
+  ];
+}
+
+def ClosureDeleteCaptures : Pass<"closure-delete-captures", "func::FuncOp"> {
+  let summary = "Delete capture arguments of closures if possible.";
+
+  let constructor = "mlir::closure::createClosureDeleteCapturesPass()";
+
+  let dependentDialects = [
+    "::mlir::func::FuncDialect",
+    "::mlir::scf::SCFDialect",
+    "::mlir::arith::ArithDialect",
+  ];
+}
 def ClosureInline : Pass<"closure-inline", "func::FuncOp"> {
-  let summary = "Inline more complex closure call patterns";
+  let summary = "Pipeline for closure inlining.";
 
   let constructor = "mlir::closure::createClosureInlinePass()";
 

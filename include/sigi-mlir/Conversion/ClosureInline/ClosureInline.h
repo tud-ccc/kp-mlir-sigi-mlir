@@ -10,5 +10,7 @@
 namespace mlir::closure {
 
 std::unique_ptr<Pass> createClosureInlinePass();
+std::unique_ptr<Pass> createClosureToFuncPass();
+std::unique_ptr<Pass> createClosureDeleteCapturesPass();
 
 } // namespace mlir::closure

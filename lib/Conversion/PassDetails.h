@@ -29,6 +29,7 @@ class LinalgDialect;
 namespace closure {
 class ClosureDialect;
 class CallOp;
+class BoxOp;
 } // namespace closure
 
 namespace arith {
@@ -46,6 +47,8 @@ class SigiDialect;
 
 #define GEN_PASS_DEF_CONVERTCLOSURETOLLVM
 #define GEN_PASS_DEF_CLOSUREINLINE
+#define GEN_PASS_DEF_CLOSUREDELETECAPTURES
+#define GEN_PASS_DEF_CLOSURETOFUNC
 #include "sigi-mlir/Conversion/ClosurePasses.h.inc"
 #define GEN_PASS_DEF_CONVERTSIGITOLLVM
 #define GEN_PASS_DEF_SIGIINSERTDROPCHECKS

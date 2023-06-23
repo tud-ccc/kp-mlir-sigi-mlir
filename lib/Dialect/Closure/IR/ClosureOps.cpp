@@ -224,6 +224,7 @@ void printFunctionSignature(
 {
     Region &body = op->getBody();
     ValueRange captured = op->getOperands();
+    unsigned int argCount = body.getArguments().size();
 
     unsigned numCapt = captured.size();
     p << '[';
@@ -245,7 +246,10 @@ void printFunctionSignature(
 
         ArrayRef<NamedAttribute> attrs;
         if (argAttrs) attrs = argAttrs[i].cast<DictionaryAttr>().getValue();
-        p.printRegionArgument(body.getArgument(numCapt + i), attrs);
+        if (numCapt + i < argCount)
+            p.printRegionArgument(body.getArgument(numCapt + i), attrs);
+        else
+            p << "<<UNKNOWN_SSA_VALUE>>";
     }
 
     if (isVariadic) {

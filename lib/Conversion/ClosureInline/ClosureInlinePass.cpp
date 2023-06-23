@@ -18,6 +18,9 @@
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/SymbolTable.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "mlir/Transforms/Passes.h"
 #include "sigi-mlir/Conversion/ClosureInline/ClosureInline.h"
 #include "sigi-mlir/Dialect/Closure/IR/ClosureDialect.h"
 #include "sigi-mlir/Dialect/Closure/Transforms/ClosureConversionUtil.h"
@@ -57,6 +60,7 @@ struct DeleteCaptureArgs : public OpRewritePattern<closure::BoxOp> {
         box.getBody().cloneInto(&newBox.getBody(), map);
 
         SmallVector<Value> newCallArgs(box.getCaptureArgs());
+        bool deleteBox = true;
         for (auto &use : box.getResult().getUses()) {
             if (auto call = dyn_cast<CallOp>(use.getOwner())) {
                 newCallArgs.truncate(box.getCaptureArgs().size());
@@ -66,9 +70,12 @@ struct DeleteCaptureArgs : public OpRewritePattern<closure::BoxOp> {
 
                 call.setOperand(0, newBox.getResult());
                 call.getCalleeOperandsMutable().assign(newCallArgs);
+            } else {
+                // otherwise they just aren't changed
+                deleteBox = false;
             }
-            // otherwise they just aren't changed
         }
+        if (deleteBox) rewriter.eraseOp(box);
         return success();
     }
 };
@@ -85,9 +92,12 @@ struct ConvertClosureBoxIntoFunc : public OpRewritePattern<closure::BoxOp> {
         if (!box.getCaptureArgs().empty()) return failure();
 
         SmallVector<closure::CallOp> calls;
+        bool deleteOp = true;
         for (auto &use : box.getResult().getUses())
             if (auto call = dyn_cast<closure::CallOp>(use.getOwner()))
-                calls.emplace_back(std::move(call));
+                calls.push_back(call);
+            else
+                deleteOp = false;
 
         if (calls.empty()) return failure();
         auto mod = box->getParentOfType<ModuleOp>();
@@ -104,10 +114,9 @@ struct ConvertClosureBoxIntoFunc : public OpRewritePattern<closure::BoxOp> {
             if (auto term =
                     dyn_cast<closure::ReturnOp>(block.getTerminator())) {
                 rewriter.setInsertionPointAfter(term);
-                rewriter.create<func::ReturnOp>(
-                    term.getLoc(),
+                rewriter.replaceOpWithNewOp<func::ReturnOp>(
+                    term,
                     term.getOperands());
-                rewriter.eraseOp(term);
             }
         }
 
@@ -118,6 +127,7 @@ struct ConvertClosureBoxIntoFunc : public OpRewritePattern<closure::BoxOp> {
                 fun,
                 ValueRange(call.getArgOperands()));
         }
+        if (deleteOp) rewriter.eraseOp(box);
         return success();
     }
 };
@@ -196,8 +206,8 @@ struct DupClosureCall : public OpConversionPattern<closure::CallOp> {
     }
 };
 
-struct ClosureInlinePass
-        : public mlir::impl::ClosureInlineBase<ClosureInlinePass> {
+struct ClosureDeleteArgsPass
+        : public mlir::impl::ClosureDeleteCapturesBase<ClosureDeleteArgsPass> {
     void runOnOperation() final
     {
         RewritePatternSet patterns(&getContext());
@@ -208,10 +218,6 @@ struct ClosureInlinePass
         target.addDynamicallyLegalOp<closure::CallOp>([](CallOp call) {
             return !call.getCallee().getDefiningOp<scf::IfOp>()
                    && !call.getCallee().getDefiningOp<arith::SelectOp>();
-        });
-        // call the canonicalizer
-        target.addDynamicallyLegalOp<sigi::PopOp>([](sigi::PopOp pop) {
-            return !pop.getInStack().getDefiningOp<sigi::PushOp>();
         });
         target.markUnknownOpDynamicallyLegal([](auto) { return true; });
 
@@ -231,12 +237,34 @@ struct ClosureInlinePass
         DeleteCaptureArgs delArgs(&getContext());
         getOperation().walk(
             [&](BoxOp box) { (void)delArgs.matchAndRewrite(box, rewriter); });
+    }
+};
+struct ClosureToFuncPass
+        : public mlir::impl::ClosureToFuncBase<ClosureToFuncPass> {
+    void runOnOperation() final
+    {
+        ConversionPatternRewriter rewriter(&getContext());
+        RewritePatternSet patterns(&getContext());
+        patterns.add<ConvertClosureBoxIntoFunc>(&getContext());
 
-        // Then turn the pattern (call (box with no args)) into func.func and
-        // func.call
-        ConvertClosureBoxIntoFunc toFunc(&getContext());
-        getOperation().walk(
-            [&](BoxOp box) { (void)toFunc.matchAndRewrite(box, rewriter); });
+        (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+    }
+};
+
+struct ClosureInlinePass
+        : public mlir::impl::ClosureInlineBase<ClosureInlinePass> {
+    void runOnOperation() final
+    {
+        PassManager pm(getOperation()->getName());
+        pm.addPass(mlir::createCanonicalizerPass());
+        pm.addPass(closure::createClosureDeleteCapturesPass());
+        pm.addPass(mlir::createCSEPass());
+        pm.addPass(closure::createClosureToFuncPass());
+        pm.addPass(mlir::createCSEPass());
+
+        // pm.addPass(mlir::createInlinerPass());
+
+        (void)pm.run(getOperation());
     }
 };
 } // namespace
@@ -244,4 +272,12 @@ struct ClosureInlinePass
 std::unique_ptr<Pass> mlir::closure::createClosureInlinePass()
 {
     return std::make_unique<ClosureInlinePass>();
+}
+std::unique_ptr<Pass> mlir::closure::createClosureDeleteCapturesPass()
+{
+    return std::make_unique<ClosureDeleteArgsPass>();
+}
+std::unique_ptr<Pass> mlir::closure::createClosureToFuncPass()
+{
+    return std::make_unique<ClosureToFuncPass>();
 }
