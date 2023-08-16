@@ -60,6 +60,9 @@ def CallOp : Closure_Op<"call",
     CallInterfaceCallable getCallableForCallee() {
       return (*this)->getAttrOfType<SymbolRefAttr>("callee");
     }
+    void setCalleeFromCallable(CallInterfaceCallable callable) {
+      // todo
+    }
   }];
 
   let assemblyFormat = [{
@@ -115,6 +118,9 @@ def BoxOp : Closure_Op<"box", [
     /// executed.
     ArrayRef<Type> getCallableResults() { return getFunctionType().getResults(); }
 
+    ::mlir::ArrayAttr getCallableArgAttrs() { return nullptr; }
+    ::mlir::ArrayAttr getCallableResAttrs() { return nullptr; }
+
     //===
     // InferTypeOpInterface
     //===
@@ -124,6 +130,7 @@ def BoxOp : Closure_Op<"box", [
         std::optional<Location> location,
         ValueRange operands,
         DictionaryAttr attributes,
+        OpaqueProperties properties,
         RegionRange regions,
         SmallVectorImpl<Type> &inferredReturnTypes) {
 

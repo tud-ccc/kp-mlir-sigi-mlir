@@ -40,8 +40,10 @@ static LLVM::LLVMFunctionType
 convertFunType(LLVMTypeConverter &converter, FunctionType funTy)
 {
     TypeConverter::SignatureConversion conversion(funTy.getInputs().size());
-    Type res = converter.convertFunctionSignature(funTy, false, conversion);
-    return res.cast<LLVM::LLVMFunctionType>();
+    Type res =
+        converter.convertFunctionSignature(funTy, false, true, conversion);
+    if (res) return res.cast<LLVM::LLVMFunctionType>();
+    return nullptr;
 }
 
 static LLVM::LLVMFunctionType
@@ -218,7 +220,7 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
         // first we allocate memory for it
         Value sizeOfClosure = getSizeOfType(fullClosureTy, rewriter);
         auto mallocFun =
-            LLVM::lookupOrCreateMallocFn(moduleOp, sizeOfClosure.getType());
+            LLVM::lookupOrCreateMallocFn(moduleOp, sizeOfClosure.getType(), true);
         auto allocForClosure =
             rewriter.create<LLVM::CallOp>(mallocFun, sizeOfClosure);
 
@@ -364,6 +366,7 @@ void mlir::closure::populateClosureToLLVMFinalTypeConversions(
             auto llvmTy = typeConverter.convertFunctionSignature(
                 funcTy,
                 false,
+                true,
                 conversion);
 
             if (llvmTy)
