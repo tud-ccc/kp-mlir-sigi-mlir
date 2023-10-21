@@ -42,4 +42,30 @@ class SigiDialect;
 
 //===----------------------------------------------------------------------===//
 
+} // namespace mlir/// Declaration of conversion passes for the Sigi dialect.
+///
+/// @file
+
+#pragma once
+
+#include "mlir/Pass/Pass.h"
+#include "mlir/IR/BuiltinOps.h"
+
+namespace mlir {
+
+// Forward declaration from Dialect.h
+template<typename ConcreteDialect>
+void registerDialect(DialectRegistry &registry);
+
+namespace sigi {
+class SigiDialect;
+} // namespace sigi
+
+//===- Generated passes ---------------------------------------------------===//
+
+#define GEN_PASS_CLASSES
+#include "sigi-mlir/Conversion/SigiPasses.h.inc"
+
+//===----------------------------------------------------------------------===//
+
 } // namespace mlir
