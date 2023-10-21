@@ -14,7 +14,7 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
-// #include "sigi-mlir/Conversion/ClosurePasses.h"
+#include "sigi-mlir/Conversion/ClosurePasses.h"
 #include "sigi-mlir/Conversion/SigiPasses.h"
 #include "sigi-mlir/Dialect/Closure/IR/ClosureDialect.h"
 #include "sigi-mlir/Dialect/Sigi/IR/SigiDialect.h"
@@ -31,10 +31,11 @@ int main(int argc, char* argv[])
     DialectRegistry registry;
     registerAllDialects(registry);
 
-    registry.insert<closure::ClosureDialect, sigi::SigiDialect>();
+    registry.insert<closure::ClosureDialect>();
+    registry.insert<sigi::SigiDialect>();
 
     registerAllPasses();
-    // registerClosureConversionPasses();
+    registerClosureConversionPasses();
     registerSigiConversionPasses();
 
     return asMainReturnCode(
