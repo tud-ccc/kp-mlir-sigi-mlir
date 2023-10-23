@@ -27,7 +27,7 @@ void SigiDialect::initialize()
     registerOps();
     registerTypes();
 }
-
+/*
 /// Parse a type registered to this dialect.
 mlir::Type SigiDialect::parseType(mlir::DialectAsmParser &parser) const
 {
@@ -39,3 +39,4 @@ void SigiDialect::printType(mlir::Type type, mlir::DialectAsmPrinter &os) const
 {
     os << "SigiType";
 }
+*/

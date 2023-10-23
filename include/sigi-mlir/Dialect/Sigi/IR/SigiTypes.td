@@ -9,6 +9,20 @@
 
 include "mlir/IR/BuiltinTypeInterfaces.td"
 
+def Sigi_StackType : Sigi_Type<"SigiStack"> {
+  let mnemonic = "stack";
+  let summary = "Type that represents sigi's stack.";
+
+  //let parameters = (ins "FunctionType":$functionType);
+  //let assemblyFormat = "`<` $functionType `>`";
+
+  //let builders = [
+  //  TypeBuilder<(ins "TypeRange":$inputs, "TypeRange":$results), [{
+  //      return get(context, FunctionType::get(context, inputs, results));
+  //  }]>
+  //];
+}
+
 
 
 #endif
