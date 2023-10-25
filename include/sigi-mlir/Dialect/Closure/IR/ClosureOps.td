@@ -16,9 +16,10 @@ include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
-include "mlir/IR/FunctionInterfaces.td"
+include "mlir/Interfaces/FunctionInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Bytecode/BytecodeOpInterface.td"
 
 
 def CallOp : Closure_Op<"call",
@@ -51,6 +52,10 @@ def CallOp : Closure_Op<"call",
     /// Get the argument operands to the called function.
     operand_range getArgOperands() {
       return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    MutableOperandRange getArgOperandsMutable() {
+      return MutableOperandRange(*this, 1, getCalleeOperands().size());
     }
 
     operand_iterator arg_operand_begin() { return operand_begin(); }
@@ -107,6 +112,15 @@ def BoxOp : Closure_Op<"box", [
       return BoxedClosureType::get(getContext(), getFunctionType());
     }
 
+    ArrayRef<Type> getArgumentTypes() {
+      return getFunctionType().getInputs();
+    }
+
+    ArrayRef<Type> getResultTypes() {
+      return getFunctionType().getResults();
+    }
+
+
     //===------------------------------------------------------------------===//
     // CallableOpInterface
     //===------------------------------------------------------------------===//
@@ -134,7 +148,8 @@ def BoxOp : Closure_Op<"box", [
         RegionRange regions,
         SmallVectorImpl<Type> &inferredReturnTypes) {
 
-        Type ty = attributes.get("function_type").cast<TypeAttr>().getValue();
+        Attribute att = attributes.get("function_type");
+        Type ty = att.cast<TypeAttr>().getValue();
         FunctionType funTy = ty.cast<FunctionType>();
         inferredReturnTypes.assign({BoxedClosureType::get(context, funTy)});
         return success();

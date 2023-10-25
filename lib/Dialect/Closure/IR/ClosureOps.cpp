@@ -7,8 +7,8 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/FunctionImplementation.h"
-#include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
+#include "mlir/Interfaces/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
 
 #include "llvm/ADT/APFloat.h"
@@ -175,6 +175,7 @@ ParseResult parseBoxOp(
         if (body->empty())
             return parser.emitError(loc, "expected non-empty function body");
     }
+    assert(result.attributes.get(typeAttrName) && "Need a function type attr");
     return success();
 }
 

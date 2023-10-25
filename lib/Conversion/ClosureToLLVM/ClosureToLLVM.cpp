@@ -37,7 +37,7 @@ static LLVM::LLVMPointerType untypedPtrType(MLIRContext* ctx)
 }
 
 static LLVM::LLVMFunctionType
-convertFunType(LLVMTypeConverter &converter, FunctionType funTy)
+convertFunType(LLVMTypeConverter const &converter, FunctionType funTy)
 {
     TypeConverter::SignatureConversion conversion(funTy.getInputs().size());
     Type res =
@@ -91,7 +91,7 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
     static Value getSizeOfType(Type ty, ImplicitLocOpBuilder &rewriter)
     {
         //  https://stackoverflow.com/questions/14608250/how-can-i-find-the-size-of-a-type
-        auto fakeArray = rewriter.create<LLVM::NullOp>(ptrType(ty));
+        auto fakeArray = rewriter.create<LLVM::ZeroOp>(ptrType(ty));
 
         auto gep = rewriter.create<LLVM::GEPOp>(
             ptrType(ty),
