@@ -10,6 +10,8 @@
 
 include "sigi-mlir/Dialect/Sigi/IR/SigiBase.td"
 include "sigi-mlir/Dialect/Sigi/IR/SigiTypes.td"
+include "sigi-mlir/Dialect/Closure/IR/ClosureBase.td"
+include "sigi-mlir/Dialect/Closure/IR/ClosureTypes.td"
 
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpAsmInterface.td"
@@ -20,15 +22,15 @@ include "mlir/IR/FunctionInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
-
 def PopOp : Sigi_Op<"pop"> {
   let summary = "stack pop operation";
   let description = [{
   }];
 
   let arguments = (ins Sigi_StackType:$callee);
-  let results = (outs Sigi_StackType:$newstack, AnyTypeOf<[I32, I1]>:$result);
-/*
+  //let results = (outs Sigi_StackType:$newstack, AnyTypeOf<[I32, I1, Closure_BoxType]>:$result);
+  let results = (outs Sigi_StackType:$newstack, Variadic<AnyType>:$result);
+  /*
   let extraClassDeclaration = [{
     FunctionType getCalleeType() {
       return getCallee().getType().cast<SigiStackType>().getFunctionType();
@@ -64,7 +66,8 @@ def PushOp : Sigi_Op<"push">{
   let summary = "stack pop operation";
   let description = [{}];
 
-  let arguments = (ins Sigi_StackType:$instack, AnyTypeOf<[I32, I1]>:$element);
+  //let arguments = (ins Sigi_StackType:$instack, AnyTypeOf<[I32, I1, Closure_BoxType]>:$element);
+  let arguments = (ins Sigi_StackType:$instack, Variadic<AnyType>:$element);
   let results = (outs Sigi_StackType:$outstack);
 
   let assemblyFormat = [{

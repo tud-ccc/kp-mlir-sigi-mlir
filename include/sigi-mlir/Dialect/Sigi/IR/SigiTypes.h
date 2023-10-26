@@ -11,5 +11,4 @@
 
 #define GET_TYPEDEF_CLASSES
 #include "sigi-mlir/Dialect/Sigi/IR/SigiTypes.h.inc"
-
 //===----------------------------------------------------------------------===//
