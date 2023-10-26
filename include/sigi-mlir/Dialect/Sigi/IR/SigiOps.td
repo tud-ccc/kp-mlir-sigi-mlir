@@ -27,7 +27,7 @@ def PopOp : Sigi_Op<"pop"> {
   }];
 
   let arguments = (ins Sigi_StackType:$callee);
-  let results = (outs Sigi_StackType:$newstack, Variadic<AnyType>:$result);
+  let results = (outs Sigi_StackType:$newstack, AnyTypeOf<[I32, I1]>:$result);
 /*
   let extraClassDeclaration = [{
     FunctionType getCalleeType() {
@@ -64,7 +64,7 @@ def PushOp : Sigi_Op<"push">{
   let summary = "stack pop operation";
   let description = [{}];
 
-  let arguments = (ins Sigi_StackType:$instack, Variadic<AnyType>:$element);
+  let arguments = (ins Sigi_StackType:$instack, AnyTypeOf<[I32, I1]>:$element);
   let results = (outs Sigi_StackType:$outstack);
 
   let assemblyFormat = [{

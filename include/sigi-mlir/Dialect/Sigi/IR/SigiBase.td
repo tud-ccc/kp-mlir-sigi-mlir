@@ -40,4 +40,17 @@ class Sigi_Op<string mnemonic, list<Trait> traits = []>
 class Sigi_Type<string name, list<Trait> traits = []>
         : TypeDef<Sigi_Dialect, name, traits>;
 
+
+def Sigi_MainAttr : Sigi_Attr<"main">{
+    let summary = "Tags a function as the main function";
+    let description = [{}];
+}
+
+
+
+def Sigi_BuildinAttr : Sigi_Attr<"buildinfunc">{
+    let summary = "Tags a function as being a build-in function";
+    let description = [{}];
+}
+
 #endif

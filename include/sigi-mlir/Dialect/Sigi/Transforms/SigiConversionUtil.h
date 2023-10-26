@@ -1,7 +1,6 @@
 
 #pragma once
 #include "sigi-mlir/Dialect/Sigi/IR/SigiDialect.h"
-
 namespace mlir {
 class TypeConverter;
 class LLVMTypeConverter;
