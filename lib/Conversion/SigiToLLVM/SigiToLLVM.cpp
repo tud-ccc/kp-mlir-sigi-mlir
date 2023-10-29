@@ -49,6 +49,25 @@ struct ConvertSigiPopToLLVM
         OpAdaptor adaptor,
         ConversionPatternRewriter &rewriter) const override
     {
+
+        auto llvmBool = IntegerType::get(getContext(), 1);
+        auto llvmI32 = IntegerType::get(getContext(), 32);
+        //get the type of our pop, legalize it, then emit the
+        auto callee = adaptor.getCallee();
+        if (callee.getType() != llvmBool || callee.getType() != llvmI32){
+            return rewriter.notifyMatchFailure(
+                callee.getLoc(),
+                [&](Diagnostic &diag) {
+                    diag << "Expected callee " << callee
+                         << " to have type " << llvmBool
+                         << " or " << llvmI32
+                         << " but got " << callee.getType() << ".";
+                });
+        }
+
+        //Is either bool or i32
+        bool is_bool = callee.getType() == llvmBool;
+
         std::cout << "Pop Pop" << std::endl;
         return LLVM::detail::oneToOneRewrite(
             op,
@@ -73,7 +92,7 @@ void mlir::sigi::populateSigiToLLVMFinalTypeConversions(
 
     // Convert sigistack type to the underlying llvmPtr<struct<sigi_stack_t>>
     typeConverter.addConversion(
-        [&](sigi::SigiStackType type) -> Type {
+        [&](sigi::stackType type) -> Type {
             // turns !sigi.stack
             // to !llvm.ptr<struct<"sigi_stack_t">>>
 
@@ -88,7 +107,7 @@ void mlir::sigi::populateSigiToLLVMFinalTypeConversions(
 */
             //Right now just build the llvm type and emit that
             
-            std::cout << "Sigi stack to llvm type..." << std::endl;
+            
             //NOTE: I Hope this generates the llvm.ptr<struct<"sigi_stack_t">> type.
             auto llvmStackTy = LLVM::LLVMStructType::getIdentified(
                 &typeConverter.getContext(), "sigi_stack_t");

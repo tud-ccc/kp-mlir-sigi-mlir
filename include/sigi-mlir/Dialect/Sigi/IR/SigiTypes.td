@@ -9,7 +9,7 @@
 
 include "mlir/IR/BuiltinTypeInterfaces.td"
 
-def Sigi_StackType : Sigi_Type<"SigiStack"> {
+def Sigi_StackType : Sigi_Type<"stack"> {
   let mnemonic = "stack";
   let summary = "Type that represents sigi's stack.";
 
