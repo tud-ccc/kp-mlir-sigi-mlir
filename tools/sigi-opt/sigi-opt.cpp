@@ -31,8 +31,7 @@ int main(int argc, char* argv[])
     DialectRegistry registry;
     registerAllDialects(registry);
 
-    registry.insert<closure::ClosureDialect>();
-    registry.insert<sigi::SigiDialect>();
+    registry.insert<closure::ClosureDialect, sigi::SigiDialect>();
 
     registerAllPasses();
     registerClosureConversionPasses();

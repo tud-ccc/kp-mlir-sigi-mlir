@@ -1,5 +1,7 @@
 
-build_type := env_var_or_default("LLVM_BUILD_TYPE", "RelWithDebInfo")
+build_type := env_var_or_default("LLVM_BUILD_TYPE", "Debug")
+#build_type := env_var_or_default("LLVM_BUILD_TYPE", "RelWithDebInfo")
+
 llvm_prefix := env_var("LLVM_INSTALL_DIR") + "/build-Debug"
 build_dir := "build-" + build_type
 
@@ -50,7 +52,7 @@ llvmDialectIntoExecutable FILE:
     {{llvm_prefix}}/bin/mlir-translate -mlir-to-llvmir {{FILE}} > ${FILEBASE}.ll
     # creates {{FILE}}.s
     {{llvm_prefix}}/bin/llc -O0 ${FILEBASE}.ll
-    clang-14 -fuse-ld=lld -L{{build_dir}}/lib -lSigiRuntime ${FILEBASE}.s -g -o ${FILEBASE}.exe -no-pie
+    clang -fuse-ld=lld -L{{build_dir}}/lib -lSigiRuntime ${FILEBASE}.s -g -o ${FILEBASE}.exe -no-pie
 
 # Lowers Sigi all the way to LLVM IR. Temporary files are left there.
 sigiToLlvmIr FILE:
@@ -74,7 +76,7 @@ closureToLlvmIrOpt FILE:
     {{llvm_prefix}}/bin/opt -O3 -S {{FILE}}.ll | tee {{FILE}}.opt.ll
     # creates {{FILE}}.s
     {{llvm_prefix}}/bin/llc -O0 {{FILE}}.opt.ll
-    clang-14 -fuse-ld=lld {{FILE}}.s -g -o {{FILE}}.exe -no-pie
+    clang -fuse-ld=lld {{FILE}}.s -g -o {{FILE}}.exe -no-pie
     
 
 addNewDialect DIALECT_NAME DIALECT_NS:
