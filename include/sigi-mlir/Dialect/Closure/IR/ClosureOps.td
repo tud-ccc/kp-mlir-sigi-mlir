@@ -16,9 +16,10 @@ include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
-include "mlir/IR/FunctionInterfaces.td"
+include "mlir/Interfaces/FunctionInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Bytecode/BytecodeOpInterface.td"
 
 
 def CallOp : Closure_Op<"call",
@@ -53,12 +54,19 @@ def CallOp : Closure_Op<"call",
       return {arg_operand_begin(), arg_operand_end()};
     }
 
+    MutableOperandRange getArgOperandsMutable() {
+      return MutableOperandRange(*this, 1, getCalleeOperands().size());
+    }
+
     operand_iterator arg_operand_begin() { return operand_begin(); }
     operand_iterator arg_operand_end() { return operand_end(); }
 
     /// Return the callee of this operation.
     CallInterfaceCallable getCallableForCallee() {
       return (*this)->getAttrOfType<SymbolRefAttr>("callee");
+    }
+    void setCalleeFromCallable(CallInterfaceCallable callable) {
+      // todo
     }
   }];
 
@@ -104,6 +112,15 @@ def BoxOp : Closure_Op<"box", [
       return BoxedClosureType::get(getContext(), getFunctionType());
     }
 
+    ArrayRef<Type> getArgumentTypes() {
+      return getFunctionType().getInputs();
+    }
+
+    ArrayRef<Type> getResultTypes() {
+      return getFunctionType().getResults();
+    }
+
+
     //===------------------------------------------------------------------===//
     // CallableOpInterface
     //===------------------------------------------------------------------===//
@@ -115,6 +132,9 @@ def BoxOp : Closure_Op<"box", [
     /// executed.
     ArrayRef<Type> getCallableResults() { return getFunctionType().getResults(); }
 
+    ::mlir::ArrayAttr getCallableArgAttrs() { return nullptr; }
+    ::mlir::ArrayAttr getCallableResAttrs() { return nullptr; }
+
     //===
     // InferTypeOpInterface
     //===
@@ -124,10 +144,12 @@ def BoxOp : Closure_Op<"box", [
         std::optional<Location> location,
         ValueRange operands,
         DictionaryAttr attributes,
+        OpaqueProperties properties,
         RegionRange regions,
         SmallVectorImpl<Type> &inferredReturnTypes) {
 
-        Type ty = attributes.get("function_type").cast<TypeAttr>().getValue();
+        Attribute att = attributes.get("function_type");
+        Type ty = att.cast<TypeAttr>().getValue();
         FunctionType funTy = ty.cast<FunctionType>();
         inferredReturnTypes.assign({BoxedClosureType::get(context, funTy)});
         return success();

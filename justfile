@@ -1,8 +1,12 @@
+# Build recipes for this project.
+#
 
-build_type := env_var_or_default("LLVM_BUILD_TYPE", "Debug")
-#build_type := env_var_or_default("LLVM_BUILD_TYPE", "RelWithDebInfo")
+# Load environment vars from .env file
+# Write LLVM_BUILD_DIR="path" into that file or set this env var in your shell.
+set dotenv-load := true
 
-llvm_prefix := env_var("LLVM_INSTALL_DIR") + "/build-Debug"
+llvm_prefix := env_var("LLVM_BUILD_DIR")
+build_type := env_var_or_default("LLVM_BUILD_TYPE", "RelWithDebInfo")
 build_dir := "build-" + build_type
 
 # execute cmake -- this is only needed on the first build
