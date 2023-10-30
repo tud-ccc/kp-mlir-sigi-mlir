@@ -21,7 +21,6 @@ def Sigi_Dialect : Dialect {
     }];
 
     let useDefaultTypePrinterParser = 1;
-    let useFoldAPI = kEmitFoldAdaptorFolder;
 
     code extraClassDeclaration = [{
     private:
