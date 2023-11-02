@@ -78,7 +78,7 @@ def CallOp : Closure_Op<"call",
 
 def BoxOp : Closure_Op<"box", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface, 
-  InferTypeOpInterface, IsolatedFromAbove
+  IsolatedFromAbove
 ]> {
   let summary = "Create a boxed closure with the given functional signature.";
   let description = [{
@@ -134,26 +134,6 @@ def BoxOp : Closure_Op<"box", [
 
     ::mlir::ArrayAttr getCallableArgAttrs() { return nullptr; }
     ::mlir::ArrayAttr getCallableResAttrs() { return nullptr; }
-
-    //===
-    // InferTypeOpInterface
-    //===
-
-    static LogicalResult inferReturnTypes(
-        MLIRContext* context,
-        std::optional<Location> location,
-        ValueRange operands,
-        DictionaryAttr attributes,
-        OpaqueProperties properties,
-        RegionRange regions,
-        SmallVectorImpl<Type> &inferredReturnTypes) {
-
-        Attribute att = attributes.get("function_type");
-        Type ty = att.cast<TypeAttr>().getValue();
-        FunctionType funTy = ty.cast<FunctionType>();
-        inferredReturnTypes.assign({BoxedClosureType::get(context, funTy)});
-        return success();
-    }
 
   }];
   let hasCustomAssemblyFormat = 1;
