@@ -14,9 +14,10 @@ include "sigi-mlir/Dialect/Sigi/IR/SigiTypes.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
-include "mlir/Interfaces/CallInterfaces.td"
+include "mlir/Bytecode/BytecodeOpInterface.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
-include "mlir/IR/FunctionInterfaces.td"
+include "mlir/Interfaces/FunctionInterfaces.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
@@ -43,7 +44,7 @@ def PushOp : Sigi_Op<"push", [Pure]> {
 }
 
 
-def PopOp : Sigi_Op<"pop", [InferTypeOpInterface, Pure]> {
+def PopOp : Sigi_Op<"pop", [Pure]> {
   let summary = "pop operation";
   let description = [{
   }];
@@ -53,22 +54,6 @@ def PopOp : Sigi_Op<"pop", [InferTypeOpInterface, Pure]> {
 
   let extraClassDeclaration = [{
 
-    //===
-    // InferTypeOpInterface
-    //===
-
-    static LogicalResult inferReturnTypes(
-        MLIRContext* context,
-        std::optional<Location> location,
-        ValueRange operands,
-        DictionaryAttr attributes,
-        RegionRange regions,
-        SmallVectorImpl<Type> &inferredReturnTypes) {
-
-        Type ty = attributes.get("value_type").cast<TypeAttr>().getValue();
-        inferredReturnTypes.assign({StackType::get(context), ty});
-        return success();
-    }
   }];
 
   let hasCustomAssemblyFormat = 1;

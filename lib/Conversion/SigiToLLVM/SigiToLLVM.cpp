@@ -298,8 +298,8 @@ struct ConvertSigiMainFuncToLLVM
         // clang-format on
         auto indexTy = rewriter.getI64Type();
         auto voidTy = LLVM::LLVMVoidType::get(getContext());
-        auto mallocDef = LLVM::lookupOrCreateMallocFn(moduleOp, indexTy);
-        auto freeDef = LLVM::lookupOrCreateFreeFn(moduleOp);
+        auto mallocDef = LLVM::lookupOrCreateMallocFn(moduleOp, indexTy, true);
+        auto freeDef = LLVM::lookupOrCreateFreeFn(moduleOp, true);
         auto sigiInitStackDef = LLVM::lookupOrCreateFn(
             moduleOp,
             "sigi_init_stack",
