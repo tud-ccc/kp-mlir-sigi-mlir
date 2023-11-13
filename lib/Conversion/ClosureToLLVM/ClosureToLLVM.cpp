@@ -222,7 +222,7 @@ struct ConvertClosureBoxToLLVM : public ConvertOpToLLVMPattern<closure::BoxOp> {
         auto mallocFun =
             LLVM::lookupOrCreateMallocFn(moduleOp, sizeOfClosure.getType(), true);
         auto allocForClosure =
-            rewriter.create<LLVM::CallOp>(mallocFun, sizeOfClosure, true);
+            rewriter.create<LLVM::CallOp>(mallocFun, ValueRange { sizeOfClosure });
 
         // then we create an instance and initialize it
         auto closureInstance = rewriter.create<LLVM::UndefOp>(fullClosureTy);
