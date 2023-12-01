@@ -51,10 +51,11 @@ struct DeleteCaptureArgs : public OpRewritePattern<closure::BoxOp> {
         rewriter.setInsertionPointAfter(box);
         auto newBox = rewriter.create<BoxOp>(
             box.getLoc(),
+            closure::BoxedClosureType::get(getContext(), newFunType),
+            newFunType,
             ValueRange{},
-            ArrayRef{rewriter.getNamedAttr(
-                "function_type",
-                TypeAttr::get(newFunType))});
+            rewriter.getArrayAttr({}),
+            rewriter.getArrayAttr({}));
 
         IRMapping map;
         box.getBody().cloneInto(&newBox.getBody(), map);

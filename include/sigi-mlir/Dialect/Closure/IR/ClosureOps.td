@@ -78,11 +78,7 @@ def CallOp : Closure_Op<"call",
 
 def BoxOp : Closure_Op<"box", [
   AffineScope, AutomaticAllocationScope, CallableOpInterface, 
-<<<<<<< HEAD
-  IsolatedFromAbove
-=======
-  InferTypeOpInterface, IsolatedFromAbove, Pure
->>>>>>> c837162 (Fix closure interfaces for the inliner)
+  IsolatedFromAbove, Pure
 ]> {
   let summary = "Create a boxed closure with the given functional signature.";
   let description = [{
@@ -137,9 +133,6 @@ def BoxOp : Closure_Op<"box", [
     ArrayRef<Type> getCallableResults() { return getFunctionType().getResults(); }
     ArrayAttr getCallableArgAttrs() { return {}; }
     ArrayAttr getCallableResAttrs() { return {}; }
-
-    ::mlir::ArrayAttr getCallableArgAttrs() { return nullptr; }
-    ::mlir::ArrayAttr getCallableResAttrs() { return nullptr; }
 
   }];
   let hasCustomAssemblyFormat = 1;
