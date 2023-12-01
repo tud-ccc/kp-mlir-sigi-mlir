@@ -4,18 +4,10 @@
 /// @author     Clément Fournier (clement.fournier@mailbox.tu-dresden.de)
 
 #include "../PassDetails.h"
-#include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
-#include "mlir/Conversion/LLVMCommon/Pattern.h"
-#include "mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
-#include "mlir/Dialect/LLVMIR/FunctionCallUtils.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/IRMapping.h"
-#include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/PassManager.h"
@@ -24,7 +16,6 @@
 #include "sigi-mlir/Conversion/ClosureInline/ClosureInline.h"
 #include "sigi-mlir/Dialect/Closure/IR/ClosureDialect.h"
 #include "sigi-mlir/Dialect/Closure/Transforms/ClosureConversionUtil.h"
-#include "sigi-mlir/Dialect/Sigi/IR/SigiDialect.h"
 
 using namespace mlir;
 using namespace mlir::closure;
