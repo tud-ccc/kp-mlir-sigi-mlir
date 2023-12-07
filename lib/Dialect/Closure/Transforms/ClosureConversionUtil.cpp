@@ -1,4 +1,4 @@
-
+#include "llvm/ADT/SmallString.h"
 #include "sigi-mlir/Dialect/Closure/Transforms/ClosureConversionUtil.h"
 
 #include "mlir/Transforms/DialectConversion.h"
