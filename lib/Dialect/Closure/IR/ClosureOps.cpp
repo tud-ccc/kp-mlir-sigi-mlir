@@ -8,7 +8,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/IRMapping.h"
-//#include "mlir/Interfaces/FunctionInterfaces.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Transforms/DialectConversion.h"

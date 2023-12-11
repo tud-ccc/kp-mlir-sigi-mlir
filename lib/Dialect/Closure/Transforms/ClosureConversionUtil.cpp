@@ -3,6 +3,7 @@
 
 #include "mlir/Transforms/DialectConversion.h"
 #include "sigi-mlir/Dialect/Closure/IR/ClosureDialect.h"
+#include "llvm/ADT/SmallString.h"
 
 using namespace mlir;
 
