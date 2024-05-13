@@ -10,6 +10,15 @@
 include "mlir/IR/BuiltinTypeInterfaces.td"
 include "SigiBase.td"
 
-// todo
+
+def Sigi_StackType : Sigi_Type<"Stack"> {
+  let mnemonic = "stack";
+  let summary = "Type for the runtime stack of a Sigi program.";
+}
+
+def Sigi_GenericType : Sigi_Type<"Generic"> {
+  let mnemonic = "generic";
+  let summary = "Type for an erased runtime value.";
+}
 
 #endif
