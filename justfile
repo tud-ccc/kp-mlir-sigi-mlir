@@ -20,7 +20,7 @@ cmake:
         -DCMAKE_C_COMPILER=clang \
         -DCMAKE_CXX_COMPILER=clang++ \
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-        -DCMAKE_LINKER="/bin/ld.lld"
+        -DCMAKE_LINKER_TYPE=MOLD
 
 # execute a specific ninja target
 doNinja *ARGS:
@@ -70,7 +70,7 @@ sigiToLlvmIr FILE:
     #!/bin/bash
     FILEBASE={{FILE}}
     FILEBASE=${FILEBASE%.*}
-    {{build_dir}}/bin/sigi-opt --closure-inline --inline --sigi-insert-drop-checks --convert-arith-to-llvm --convert-scf-to-cf --convert-sigi-to-llvm -cse --llvm-legalize-for-export --mlir-print-ir-after-failure --mlir-print-stacktrace-on-diagnostic {{FILE}} > $FILEBASE.llvm.mlir
+    {{build_dir}}/bin/sigi-opt --convert-arith-to-llvm --convert-scf-to-cf --convert-sigi-to-llvm -cse --llvm-legalize-for-export --mlir-print-ir-after-failure --mlir-print-stacktrace-on-diagnostic {{FILE}} > $FILEBASE.llvm.mlir
     just llvmDialectIntoExecutable $FILEBASE.llvm.mlir
 
 # Lowers closure all the way to LLVM IR. Temporary files are left there.
