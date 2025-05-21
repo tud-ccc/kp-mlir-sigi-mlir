@@ -96,3 +96,29 @@ void PopOp::print(OpAsmPrinter &printer)
 {
     printer << " " << getInStack() << " : " << getValueType();
 }
+
+namespace {
+/// @brief Fold a push followed by a pop into nothing.
+class SigiPushPopFolder : public OpRewritePattern<sigi::PopOp> {
+    using OpRewritePattern::OpRewritePattern;
+
+    LogicalResult
+    matchAndRewrite(sigi::PopOp pop, PatternRewriter &rewriter0) const override
+    {
+
+        if (auto push = pop.getInStack().getDefiningOp<sigi::PushOp>()) {
+            rewriter0.replaceOp(pop, {push.getInStack(), push.getValue()});
+            return success();
+        }
+        return failure();
+    }
+};
+
+} // namespace
+
+void PopOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns,
+    MLIRContext* context)
+{
+    patterns.add<SigiPushPopFolder>(context);
+}

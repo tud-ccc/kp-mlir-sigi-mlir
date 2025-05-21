@@ -46,8 +46,12 @@ class SigiDialect;
 //===- Generated passes ---------------------------------------------------===//
 
 #define GEN_PASS_DEF_CONVERTCLOSURETOLLVM
+#define GEN_PASS_DEF_CLOSUREINLINE
+#define GEN_PASS_DEF_CLOSUREDELETECAPTURES
+#define GEN_PASS_DEF_CLOSURETOFUNC
 #include "sigi-mlir/Conversion/ClosurePasses.h.inc"
 #define GEN_PASS_DEF_CONVERTSIGITOLLVM
+#define GEN_PASS_DEF_SIGIINSERTDROPCHECKS
 #include "sigi-mlir/Conversion/SigiPasses.h.inc"
 
 //===----------------------------------------------------------------------===//

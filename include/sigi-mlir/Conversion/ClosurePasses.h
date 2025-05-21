@@ -8,9 +8,9 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "sigi-mlir/Conversion/ClosureToLLVM/ClosureToLLVM.h"
+#include "sigi-mlir/Conversion/ClosureInline/ClosureInline.h"
 
 namespace mlir {
-
 
 //===- Generated passes ---------------------------------------------------===//
 

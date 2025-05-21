@@ -11,5 +11,4 @@ include "PassUtil.td"
 
 def ConvertSigiToLLVM : ConvertToLlvm<"Sigi", "sigi">;
 
-
 #endif // SIGI_CONVERSION_PASSES
